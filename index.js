@@ -85,6 +85,12 @@ function getSessionEndTime(session) {
     end.setHours(CONFIG.SESSION_TIME.TOI_END, 0, 0, 0);
   return end.getTime();
 }
+ if (end.getTime() <= now.getTime()) {
+    return now.getTime();
+  }
+
+  return end.getTime();
+}
 
 /* ================== DATA ================== */
 function loadData() {
