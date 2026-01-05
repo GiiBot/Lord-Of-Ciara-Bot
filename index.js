@@ -149,8 +149,8 @@ function buildAttendanceEmbed(data, title) {
     .setDescription(
       `👥 **Đã điểm danh:** ${data.users.length} người\n\n${list}`
     )
-    .setImage("https://media.giphy.com/media/26n6WywJyh39n1pBu/giphy.gif")
-    .setFooter({ text: "LORD OF CIARA • Attendance System" })
+    .setImage("https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExeTVzMDZsMzUzaXppdmdzeWViOHU4NHN5MWY3a205dm5icW5zMGVoMiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/ispEc1253326c/giphy.gif")
+    .setFooter({ text: "LORD OF CIARA - Sự kiện • Top những người chịu đau tốt nhất thế giới" })
     .setTimestamp();
 }
 
@@ -167,7 +167,7 @@ function errorEmbed(text) {
     .setColor("#ff4d4d")
     .setTitle("❌ KHÔNG THỂ ĐIỂM DANH")
     .setDescription(text)
-    .setImage("https://media.giphy.com/media/26BRuo6sLetdllPAQ/giphy.gif");
+    .setImage("https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExaWIzdHk2cnRmaTBnN2lkZmJ2cnpoOW1yenYwdDlvbjh5MW1zNmZ2dSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/7SF5scGB2AFrgsXP63/giphy.gif");
 }
 
 /* ================== OPEN SESSION ================== */
