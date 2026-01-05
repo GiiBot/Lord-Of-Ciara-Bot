@@ -15,7 +15,6 @@ const {
 const CONFIG = {
   TIMEZONE: "Asia/Ho_Chi_Minh",
   CHANNEL_ID: process.env.CHANNEL_ID,
-  LOG_CHANNEL_ID: process.env.LOG_CHANNEL_ID,
   DATA_FILE: "./data.json",
   DM_DELAY: 1200,
 
@@ -89,41 +88,22 @@ function getSessionEndTime(session) {
 
 /* ================== DATA ================== */
 function loadData() {
-  if (!fs.existsSync(CONFIG.DATA_FILE))
+  if (!fs.existsSync(CONFIG.DATA_FILE)) {
     fs.writeFileSync(CONFIG.DATA_FILE, JSON.stringify({ users: [] }, null, 2));
+  }
   return JSON.parse(fs.readFileSync(CONFIG.DATA_FILE));
 }
 function saveData(data) {
   fs.writeFileSync(CONFIG.DATA_FILE, JSON.stringify(data, null, 2));
 }
 
-/* ================== LOG TO DISCORD ================== */
-async function sendAttendanceLog(reason = "") {
-  if (!CONFIG.LOG_CHANNEL_ID) return;
-
-  const data = loadData();
-  const logChannel = await client.channels.fetch(CONFIG.LOG_CHANNEL_ID);
-
-  const title =
-    currentSession === "trua" ? "SỰ KIỆN TRƯA" : "SỰ KIỆN TỐI";
-
-  const list =
-    data.users.length === 0
-      ? "_Không có ai điểm danh_"
-      : data.users.map((id, i) => `${i + 1}. <@${id}>`).join("\n");
-
-  const embed = new EmbedBuilder()
-    .setTitle(`📋 LOG ĐIỂM DANH – ${title}`)
-    .setColor("#00ff99")
-    .setDescription(
-      `📅 **Ngày:** ${getVNTime().toLocaleDateString("vi-VN")}\n` +
-      `👥 **Tổng:** ${data.users.length}\n` +
-      (reason ? `📝 **Lý do:** ${reason}\n\n` : "\n") +
-      list
-    )
-    .setTimestamp();
-
-  await logChannel.send({ embeds: [embed] });
+/* ================== COUNTDOWN ================== */
+function getCountdownText() {
+  if (!sessionEndTime) return "";
+  const diff = sessionEndTime - Date.now();
+  if (diff <= 0) return "⛔ **Điểm danh đã đóng**";
+  const m = Math.ceil(diff / 60000);
+  return `⏳ **Còn ${m} phút sẽ đóng**`;
 }
 
 /* ================== EMBED ================== */
@@ -140,11 +120,36 @@ function buildBoardEmbed(data) {
     .setColor(CONFIG.EMBED.COLOR)
     .setDescription(
       `🔥 **Điểm danh đang mở**\n` +
-      `👥 **Đã điểm danh:** ${data.users.length}\n\n${list}`
+        `👥 **Đã điểm danh:** ${data.users.length}\n` +
+        `${getCountdownText()}\n\n${list}`
     )
     .setImage(isTrua ? CONFIG.EMBED.GIF_TRUA : CONFIG.EMBED.GIF_TOI)
     .setFooter({ text: CONFIG.EMBED.FOOTER })
     .setTimestamp();
+}
+
+/* ================== REPLY 15s ================== */
+async function replyEmbedCountdown(interaction, opt) {
+  let t = 15;
+  const build = () =>
+    new EmbedBuilder()
+      .setColor(opt.color)
+      .setTitle(opt.title)
+      .setDescription(`${opt.text}\n\n⏳ **Tự gỡ sau ${t}s**`)
+      .setImage(opt.gif)
+      .setFooter({ text: CONFIG.EMBED.FOOTER });
+
+  await interaction.reply({ embeds: [build()], ephemeral: true });
+
+  const i = setInterval(async () => {
+    t--;
+    if (t <= 0) {
+      clearInterval(i);
+      interaction.deleteReply().catch(() => {});
+      return;
+    }
+    await interaction.editReply({ embeds: [build()] }).catch(() => {});
+  }, 1000);
 }
 
 /* ================== OPEN SESSION ================== */
@@ -172,22 +177,13 @@ async function openSession() {
   });
 
   attendanceMessageId = msg.id;
+  await msg.pin().catch(() => {});
 }
-
-/* ================== AUTO SEND LOG WHEN CLOSE ================== */
-cron.schedule("0 16 * * *", () => sendAttendanceLog("Kết thúc ca Trưa"), {
-  timezone: CONFIG.TIMEZONE,
-});
-cron.schedule("0 22 * * *", () => sendAttendanceLog("Kết thúc ca Tối"), {
-  timezone: CONFIG.TIMEZONE,
-});
 
 /* ================== RESEND ================== */
 async function resendBoard() {
   const session = getCurrentSession();
   if (!session) return;
-
-  await sendAttendanceLog("Admin resend");
 
   currentSession = session;
   sessionEndTime = getSessionEndTime(session);
@@ -209,6 +205,7 @@ async function resendBoard() {
   });
 
   attendanceMessageId = msg.id;
+  await msg.pin().catch(() => {});
 }
 
 /* ================== BUTTON ================== */
@@ -216,17 +213,21 @@ client.on("interactionCreate", async (interaction) => {
   if (!interaction.isButton() || interaction.customId !== "diemdanh") return;
 
   if (!sessionEndTime || Date.now() > sessionEndTime) {
-    return interaction.reply({
-      content: "⛔ Điểm danh đã đóng",
-      ephemeral: true,
+    return replyEmbedCountdown(interaction, {
+      title: "⛔ ĐIỂM DANH ĐÃ ĐÓNG",
+      text: "Sự kiện đã kết thúc.",
+      gif: REPLY_GIF.CLOSED,
+      color: "#999999",
     });
   }
 
   const data = loadData();
   if (data.users.includes(interaction.user.id)) {
-    return interaction.reply({
-      content: "❌ Bạn đã điểm danh rồi",
-      ephemeral: true,
+    return replyEmbedCountdown(interaction, {
+      title: "❌ ĐÃ ĐIỂM DANH",
+      text: "Bạn đã điểm danh rồi!",
+      gif: REPLY_GIF.ERROR,
+      color: "#ff4444",
     });
   }
 
@@ -237,9 +238,11 @@ client.on("interactionCreate", async (interaction) => {
   const msg = await channel.messages.fetch(attendanceMessageId);
   await msg.edit({ embeds: [buildBoardEmbed(data)] });
 
-  interaction.reply({
-    content: "✅ Điểm danh thành công!",
-    ephemeral: true,
+  return replyEmbedCountdown(interaction, {
+    title: "✅ ĐIỂM DANH THÀNH CÔNG",
+    text: "Chúc bạn chơi vui 🔥",
+    gif: REPLY_GIF.SUCCESS,
+    color: "#4CAF50",
   });
 });
 
@@ -252,9 +255,41 @@ client.on("messageCreate", async (message) => {
     return;
 
   if (message.content === "!resend") resendBoard();
+
+  if (message.content === "!remind dm") {
+    const channel = await client.channels.fetch(CONFIG.CHANNEL_ID);
+    for (const m of channel.guild.members.cache.values()) {
+      if (m.user.bot) continue;
+      try {
+        await m.send(
+          `🔔 **NHẮC ĐIỂM DANH – ${
+            currentSession === "trua" ? "SỰ KIỆN TRƯA" : "SỰ KIỆN TỐI"
+          }**\n👉 Vào kênh <#${CONFIG.CHANNEL_ID}> để điểm danh`
+        );
+      } catch {}
+      await new Promise((r) => setTimeout(r, CONFIG.DM_DELAY));
+    }
+    channel.send("📩 **Đã gửi DM nhắc điểm danh**");
+  }
+
+  if (message.content === "!log") {
+    const data = loadData();
+    const list =
+      data.users.length === 0
+        ? "_Không có ai điểm danh_"
+        : data.users.map((id, i) => `${i + 1}. <@${id}>`).join("\n");
+
+    const embed = new EmbedBuilder()
+      .setTitle("📋 LOG ĐIỂM DANH")
+      .setColor("#00ff99")
+      .setDescription(`👥 **Tổng:** ${data.users.length}\n\n${list}`)
+      .setFooter({ text: CONFIG.EMBED.FOOTER });
+
+    message.reply({ embeds: [embed] });
+  }
 });
 
-/* ================== CRON OPEN ================== */
+/* ================== CRON ================== */
 cron.schedule("0 11 * * *", openSession, { timezone: CONFIG.TIMEZONE });
 cron.schedule("0 17 * * *", openSession, { timezone: CONFIG.TIMEZONE });
 
