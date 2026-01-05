@@ -2,6 +2,7 @@ require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
 const cron = require("node-cron");
+const config = require("./config");
 const {
   Client,
   GatewayIntentBits,
@@ -22,12 +23,7 @@ const client = new Client({
   ],
 });
 
-/* ================== CONFIG ================== */
-const ROLE_TRUA = "Sự Kiện Trưa";
-const ROLE_TOI = "Sự Kiện Tối";
-const DATA_FILE = "./data.json";
-const SESSION_DURATION_MINUTES = 30;
-
+/* ================== STATE ================== */
 let attendanceMessageId = null;
 let currentRoleName = null;
 let sessionEndTime = null;
@@ -36,7 +32,7 @@ let sessionCloseTimeout = null;
 /* ================== TIME ================== */
 function getVNTime() {
   return new Date(
-    new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" })
+    new Date().toLocaleString("en-US", { timeZone: config.BOT.TIMEZONE })
   );
 }
 function todayKey() {
@@ -44,8 +40,10 @@ function todayKey() {
 }
 function getCurrentSessionVN() {
   const h = getVNTime().getHours();
-  if (h >= 11 && h < 17) return "trua";
-  if (h >= 17 && h < 23) return "toi";
+  if (h >= config.SESSION_TIME.TRUA_START && h < config.SESSION_TIME.TOI_START)
+    return "trua";
+  if (h >= config.SESSION_TIME.TOI_START && h < config.SESSION_TIME.END_HOUR)
+    return "toi";
   return null;
 }
 
@@ -60,20 +58,21 @@ function saveJSON(file, data) {
 
 /* ================== LOG ================== */
 function writeLog(text) {
-  const logsDir = "./logs";
-  if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir);
+  if (!fs.existsSync(config.FILE.LOG_DIR))
+    fs.mkdirSync(config.FILE.LOG_DIR);
+
   const file = `attendance-${todayKey()}.log`;
   fs.appendFileSync(
-    path.join(logsDir, file),
+    path.join(config.FILE.LOG_DIR, file),
     `[${getVNTime().toLocaleTimeString("vi-VN")}] ${text}\n`
   );
 }
 
-/* ================== LOG LIST ================== */
+/* ================== SEND LIST LOG ================== */
 async function sendAttendanceListLog(title) {
-  if (!process.env.LOG_CHANNEL_ID) return;
-  const logChannel = await client.channels.fetch(process.env.LOG_CHANNEL_ID);
-  const data = loadJSON(DATA_FILE, { users: [] });
+  if (!config.CHANNEL.LOG_ID) return;
+  const logChannel = await client.channels.fetch(config.CHANNEL.LOG_ID);
+  const data = loadJSON(config.FILE.DATA, { users: [] });
 
   if (data.users.length === 0) {
     await logChannel.send(`📋 **${title}**\n❌ Không có ai điểm danh.`);
@@ -112,22 +111,8 @@ async function removeRoleFromAll(guild, name) {
     await m.roles.remove(role).catch(() => {});
 }
 
-/* ================== FILTER NOT CHECKED ================== */
-function getMembersNotCheckedIn(guild) {
-  const data = loadJSON(DATA_FILE, { users: [] });
-  const checked = new Set(data.users);
-  const role = guild.roles.cache.find((r) => r.name === currentRoleName);
-
-  return guild.members.cache.filter(
-    (m) =>
-      !m.user.bot &&
-      !checked.has(m.id) &&
-      (!role || !m.roles.cache.has(role.id))
-  );
-}
-
 /* ================== EMBED ================== */
-function buildEmbed(data, title) {
+function buildEmbed(data, title, isTrua) {
   const minutesLeft = Math.max(
     0,
     Math.ceil((sessionEndTime - Date.now()) / 60000)
@@ -140,16 +125,14 @@ function buildEmbed(data, title) {
 
   return new EmbedBuilder()
     .setTitle(`📌 ${title}`)
-    .setColor("#ff3333")
+    .setColor(config.EMBED.COLOR)
     .setDescription(
-      `🔥 **Điểm danh sự kiện đang mở**\n` +
+      `🔥 **Điểm danh đang mở**\n` +
         `👥 **Đã điểm danh:** ${data.users.length}\n` +
         `⏳ **Còn ${minutesLeft} phút sẽ đóng**\n\n${list}`
     )
-    .setImage(
-      "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExa3B2aTZmOWRocnV1Y2c2b3p4eXN5dWNqMG5rNjF5dmp6aDRkMGV6ZCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/3ohzdIuqJoo8QdKlnW/giphy.gif"
-    )
-    .setFooter({ text: "LORD OF CIARA • Attendance System" })
+    .setImage(isTrua ? config.EMBED.GIF.TRUA : config.EMBED.GIF.TOI)
+    .setFooter({ text: config.EMBED.FOOTER })
     .setTimestamp();
 }
 
@@ -160,23 +143,27 @@ async function openSession(byAdmin = false) {
 
   if (byAdmin && currentRoleName) {
     await sendAttendanceListLog(
-      currentRoleName === ROLE_TRUA ? "SỰ KIỆN TRƯA" : "SỰ KIỆN TỐI"
+      currentRoleName === config.ROLE.TRUA
+        ? "SỰ KIỆN TRƯA"
+        : "SỰ KIỆN TỐI"
     );
   }
 
   if (sessionCloseTimeout) clearTimeout(sessionCloseTimeout);
 
-  const channel = await client.channels.fetch(process.env.CHANNEL_ID);
+  const channel = await client.channels.fetch(config.CHANNEL.ATTENDANCE_ID);
   const guild = channel.guild;
 
   const isTrua = session === "trua";
-  const roleName = isTrua ? ROLE_TRUA : ROLE_TOI;
-  const oldRole = isTrua ? ROLE_TOI : ROLE_TRUA;
+  const roleName = isTrua ? config.ROLE.TRUA : config.ROLE.TOI;
+  const oldRole = isTrua ? config.ROLE.TOI : config.ROLE.TRUA;
   const title = isTrua ? "SỰ KIỆN TRƯA" : "SỰ KIỆN TỐI";
 
   currentRoleName = roleName;
-  sessionEndTime = Date.now() + SESSION_DURATION_MINUTES * 60000;
-  saveJSON(DATA_FILE, { users: [] });
+  sessionEndTime =
+    Date.now() + config.BOT.SESSION_DURATION_MINUTES * 60000;
+
+  saveJSON(config.FILE.DATA, { users: [] });
 
   await removeRoleFromAll(guild, oldRole);
   await getOrCreateRole(guild, roleName);
@@ -184,13 +171,13 @@ async function openSession(byAdmin = false) {
   await channel.send({ content: "@everyone 🚨 **ĐÃ MỞ ĐIỂM DANH!**" });
 
   const msg = await channel.send({
-    embeds: [buildEmbed(loadJSON(DATA_FILE, { users: [] }), title)],
+    embeds: [buildEmbed({ users: [] }, title, isTrua)],
     components: [
       new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId("diemdanh")
-          .setLabel("🚨 Điểm Danh")
-          .setStyle(ButtonStyle.Danger)
+          .setLabel(config.BUTTON.LABEL)
+          .setStyle(ButtonStyle[config.BUTTON.STYLE])
       ),
     ],
   });
@@ -198,14 +185,19 @@ async function openSession(byAdmin = false) {
   attendanceMessageId = msg.id;
   writeLog(`MỞ CA: ${title}`);
 
-  sessionCloseTimeout = setTimeout(async () => {
-    await sendAttendanceListLog(title);
-  }, SESSION_DURATION_MINUTES * 60 * 1000);
+  sessionCloseTimeout = setTimeout(
+    async () => await sendAttendanceListLog(title),
+    config.BOT.SESSION_DURATION_MINUTES * 60000
+  );
 }
 
 /* ================== CRON ================== */
-cron.schedule("0 11 * * *", openSession, { timezone: "Asia/Ho_Chi_Minh" });
-cron.schedule("0 17 * * *", openSession, { timezone: "Asia/Ho_Chi_Minh" });
+cron.schedule("0 11 * * *", openSession, {
+  timezone: config.BOT.TIMEZONE,
+});
+cron.schedule("0 17 * * *", openSession, {
+  timezone: config.BOT.TIMEZONE,
+});
 
 /* ================== BUTTON ================== */
 client.on("interactionCreate", async (interaction) => {
@@ -215,13 +207,13 @@ client.on("interactionCreate", async (interaction) => {
     return interaction.reply({ content: "⛔ Điểm danh đã đóng!", ephemeral: true });
   }
 
-  const data = loadJSON(DATA_FILE, { users: [] });
+  const data = loadJSON(config.FILE.DATA, { users: [] });
   if (data.users.includes(interaction.user.id)) {
     return interaction.reply({ content: "❌ Bạn đã điểm danh rồi!", ephemeral: true });
   }
 
   data.users.push(interaction.user.id);
-  saveJSON(DATA_FILE, data);
+  saveJSON(config.FILE.DATA, data);
   writeLog(`ĐIỂM DANH | ${interaction.user.tag}`);
 
   const role = interaction.guild.roles.cache.find(
@@ -234,59 +226,16 @@ client.on("interactionCreate", async (interaction) => {
     embeds: [
       buildEmbed(
         data,
-        currentRoleName === ROLE_TRUA ? "SỰ KIỆN TRƯA" : "SỰ KIỆN TỐI"
+        currentRoleName === config.ROLE.TRUA
+          ? "SỰ KIỆN TRƯA"
+          : "SỰ KIỆN TỐI",
+        currentRoleName === config.ROLE.TRUA
       ),
     ],
   });
 
   await interaction.reply({ content: "✅ Điểm danh thành công!", ephemeral: true });
 });
-
-/* ================== REMIND ================== */
-async function remindChannel(all = false) {
-  const channel = await client.channels.fetch(process.env.CHANNEL_ID);
-  const members = getMembersNotCheckedIn(channel.guild).map((m) => `<@${m.id}>`);
-  if (members.length === 0) {
-    await channel.send("✅ Tất cả đã điểm danh!");
-    return;
-  }
-
-  const title =
-    currentRoleName === ROLE_TRUA ? "SỰ KIỆN TRƯA" : "SỰ KIỆN TỐI";
-
-  const chunk = 20;
-  for (let i = 0; i < members.length; i += chunk) {
-    await channel.send(
-      `🔔 **NHẮC ĐIỂM DANH – ${title}**\n` +
-        members.slice(i, i + chunk).join(" ")
-    );
-    if (!all) break;
-    await new Promise((r) => setTimeout(r, 1200));
-  }
-}
-
-async function remindDM() {
-  const channel = await client.channels.fetch(process.env.CHANNEL_ID);
-  const members = getMembersNotCheckedIn(channel.guild);
-
-  let ok = 0,
-    fail = 0;
-  for (const m of members.values()) {
-    try {
-      await m.send(
-        `🔔 **NHẮC ĐIỂM DANH – ${
-          currentRoleName === ROLE_TRUA ? "SỰ KIỆN TRƯA" : "SỰ KIỆN TỐI"
-        }**\n👉 Vào kênh <#${process.env.CHANNEL_ID}> để điểm danh nhé!`
-      );
-      ok++;
-    } catch {
-      fail++;
-    }
-    await new Promise((r) => setTimeout(r, 1200));
-  }
-
-  await channel.send(`📩 Nhắc DM xong | ✅ ${ok} | ❌ ${fail}`);
-}
 
 /* ================== ADMIN ================== */
 client.on("messageCreate", async (message) => {
@@ -297,9 +246,6 @@ client.on("messageCreate", async (message) => {
     return;
 
   if (message.content === "!resend") openSession(true);
-  if (message.content === "!remind") remindChannel(false);
-  if (message.content === "!remind all") remindChannel(true);
-  if (message.content === "!remind dm") remindDM();
 });
 
 /* ================== READY ================== */
