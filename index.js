@@ -11,10 +11,12 @@ const {
   PermissionsBitField,
 } = require("discord.js");
 
-/* ================== CONFIG (GỘP HẾT) ================== */
+/* ================== CONFIG ================== */
 const CONFIG = {
   TIMEZONE: "Asia/Ho_Chi_Minh",
   CHANNEL_ID: process.env.CHANNEL_ID,
+  DATA_FILE: "./data.json",
+  DM_DELAY: 1200,
 
   SESSION_TIME: {
     TRUA_START: 11,
@@ -33,9 +35,12 @@ const CONFIG = {
     LABEL: "🚨 Điểm Danh",
     STYLE: ButtonStyle.Danger,
   },
+};
 
-  DATA_FILE: "./data.json",
-  DM_DELAY: 1200,
+const REPLY_GIF = {
+  SUCCESS: "https://media.giphy.com/media/3o7aD2saalBwwftBIY/giphy.gif",
+  ERROR: "https://media.giphy.com/media/26BRuo6sLetdllPAQ/giphy.gif",
+  CLOSED: "https://media.giphy.com/media/l3vR85PnGsBwu1PFK/giphy.gif",
 };
 
 /* ================== CLIENT ================== */
@@ -50,16 +55,9 @@ const client = new Client({
 
 /* ================== STATE ================== */
 let attendanceMessageId = null;
-let currentSession = null; // "trua" | "toi"
+let currentSession = null; // trua | toi
 let sessionEndTime = null;
 let countdownInterval = null;
-
-/* ================== GIF REPLY ================== */
-const REPLY_GIF = {
-  SUCCESS: "https://media.giphy.com/media/3o7aD2saalBwwftBIY/giphy.gif",
-  ERROR: "https://media.giphy.com/media/26BRuo6sLetdllPAQ/giphy.gif",
-  CLOSED: "https://media.giphy.com/media/l3vR85PnGsBwu1PFK/giphy.gif",
-};
 
 /* ================== TIME ================== */
 function getVNTime() {
@@ -89,10 +87,15 @@ function getSessionEndTime(session) {
 
 /* ================== DATA ================== */
 function loadData() {
-  if (!fs.existsSync(CONFIG.DATA_FILE))
-    fs.writeFileSync(CONFIG.DATA_FILE, JSON.stringify({ users: [] }, null, 2));
+  if (!fs.existsSync(CONFIG.DATA_FILE)) {
+    fs.writeFileSync(
+      CONFIG.DATA_FILE,
+      JSON.stringify({ users: [] }, null, 2)
+    );
+  }
   return JSON.parse(fs.readFileSync(CONFIG.DATA_FILE));
 }
+
 function saveData(data) {
   fs.writeFileSync(CONFIG.DATA_FILE, JSON.stringify(data, null, 2));
 }
@@ -106,10 +109,12 @@ function getCountdownText() {
   const totalMin = Math.ceil(diff / 60000);
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
-  return h > 0 ? `⏳ **Còn ${h}h ${m}p sẽ đóng**` : `⏳ **Còn ${m}p sẽ đóng**`;
+  return h > 0
+    ? `⏳ **Còn ${h}h ${m}p sẽ đóng**`
+    : `⏳ **Còn ${m}p sẽ đóng**`;
 }
 
-/* ================== EMBED BẢNG ================== */
+/* ================== EMBED ================== */
 function buildBoardEmbed(data) {
   const list =
     data.users.length === 0
@@ -123,17 +128,18 @@ function buildBoardEmbed(data) {
     .setColor(CONFIG.EMBED.COLOR)
     .setDescription(
       `🔥 **Điểm danh đang mở**\n` +
-      `👥 **Đã điểm danh:** ${data.users.length}\n` +
-      `${getCountdownText()}\n\n${list}`
+        `👥 **Đã điểm danh:** ${data.users.length}\n` +
+        `${getCountdownText()}\n\n${list}`
     )
     .setImage(isTrua ? CONFIG.EMBED.GIF_TRUA : CONFIG.EMBED.GIF_TOI)
     .setFooter({ text: CONFIG.EMBED.FOOTER })
     .setTimestamp();
 }
 
-/* ================== REPLY EMBED COUNTDOWN 15s ================== */
+/* ================== REPLY 15s ================== */
 async function replyEmbedCountdown(interaction, opt) {
   let t = 15;
+
   const build = () =>
     new EmbedBuilder()
       .setColor(opt.color)
@@ -155,7 +161,7 @@ async function replyEmbedCountdown(interaction, opt) {
   }, 1000);
 }
 
-/* ================== DISABLE BẢNG CŨ ================== */
+/* ================== DISABLE OLD ================== */
 async function disableOldBoard(channel) {
   if (!attendanceMessageId) return;
   try {
@@ -164,10 +170,10 @@ async function disableOldBoard(channel) {
       components: [
         new ActionRowBuilder().addComponents(
           new ButtonBuilder()
+            .setCustomId("disabled")
             .setLabel("⛔ Bảng đã làm mới")
             .setStyle(ButtonStyle.Secondary)
             .setDisabled(true)
-            .setCustomId("disabled")
         ),
       ],
     });
@@ -288,7 +294,7 @@ client.on("interactionCreate", async (interaction) => {
   data.users.push(interaction.user.id);
   saveData(data);
 
-  const channel = interaction.channel;
+  const channel = await client.channels.fetch(CONFIG.CHANNEL_ID);
   const msg = await channel.messages.fetch(attendanceMessageId);
   await msg.edit({ embeds: [buildBoardEmbed(data)] });
 
@@ -300,7 +306,7 @@ client.on("interactionCreate", async (interaction) => {
   });
 });
 
-/* ================== ADMIN COMMAND ================== */
+/* ================== ADMIN ================== */
 client.on("messageCreate", async (message) => {
   if (
     message.author.bot ||
