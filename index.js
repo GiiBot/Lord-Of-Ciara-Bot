@@ -23,8 +23,8 @@ const client = new Client({
 });
 
 /* ================== CONFIG ================== */
-const ROLE_11H = "SỰ KIỆN 11H";
-const ROLE_17H = "SỰ KIỆN 17H";
+const ROLE_TRUA = "Sự Kiện Trưa";
+const ROLE_TOI = "Sự Kiện Tối";
 const DATA_FILE = "./data.json";
 let attendanceMessageId = null;
 let currentRoleName = null;
@@ -62,6 +62,8 @@ function writeLog(text) {
 }
 
 async function uploadTodayLog(note = "") {
+  if (!process.env.LOG_CHANNEL_ID) return;
+
   try {
     const logChannel = await client.channels.fetch(
       process.env.LOG_CHANNEL_ID
@@ -142,12 +144,13 @@ function buildAttendanceEmbed(data, title) {
       : data.users.map((id, i) => `${i + 1}. <@${id}>`).join("\n");
 
   return new EmbedBuilder()
-    .setTitle(`📌 ĐIỂM DANH – ${title}`)
+    .setTitle(`📌 ${title}`)
     .setColor("#00ff99")
     .setDescription(
       `👥 **Đã điểm danh:** ${data.users.length} người\n\n${list}`
     )
     .setImage("https://media.giphy.com/media/26n6WywJyh39n1pBu/giphy.gif")
+    .setFooter({ text: "LORD OF CIARA • Attendance System" })
     .setTimestamp();
 }
 
@@ -155,7 +158,7 @@ function successEmbed(user, role) {
   return new EmbedBuilder()
     .setColor("#4CAF50")
     .setTitle("✅ ĐIỂM DANH THÀNH CÔNG")
-    .setDescription(`👤 ${user.username}\n🎭 Role: **${role}**`)
+    .setDescription(`👤 ${user.username}\n🎭 **${role}**`)
     .setImage("https://media.giphy.com/media/3o7aD2saalBwwftBIY/giphy.gif");
 }
 
@@ -172,10 +175,10 @@ async function openSession(type, byAdmin = false) {
   const channel = await client.channels.fetch(process.env.CHANNEL_ID);
   const guild = channel.guild;
 
-  const isMorning = type === "sang";
-  const roleName = isMorning ? ROLE_11H : ROLE_17H;
-  const oldRole = isMorning ? ROLE_17H : ROLE_11H;
-  const title = isMorning ? "CA SÁNG 11H" : "CA CHIỀU 17H";
+  const isTrua = type === "sang";
+  const roleName = isTrua ? ROLE_TRUA : ROLE_TOI;
+  const oldRole = isTrua ? ROLE_TOI : ROLE_TRUA;
+  const title = isTrua ? "SỰ KIỆN TRƯA" : "SỰ KIỆN TỐI";
 
   currentRoleName = roleName;
   saveData({ date: today(), users: [] });
@@ -216,7 +219,7 @@ client.on("interactionCreate", async (interaction) => {
     writeLog(`TỪ CHỐI | ${interaction.user.tag}`);
     return replyAutoDeleteWithCountdown(
       interaction,
-      [errorEmbed("Bạn đã điểm danh ca này rồi!")],
+      [errorEmbed("Bạn đã điểm danh sự kiện này rồi!")],
       15
     );
   }
