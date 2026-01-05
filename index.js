@@ -11,6 +11,15 @@ const {
 } = require("discord.js");
 
 /* ================== CLIENT ================== */
+async function replyAutoDelete(interaction, options, time = 5000) {
+  await interaction.deferReply({ ephemeral: true });
+  await interaction.editReply(options);
+
+  setTimeout(() => {
+    interaction.deleteReply().catch(() => {});
+  }, time);
+}
+
 const client = new Client({
   intents: [GatewayIntentBits.Guilds],
 });
