@@ -89,6 +89,15 @@ client.on("interactionCreate", async (interaction) => {
 
   data.users.push(interaction.user.id);
   saveData(data);
+  // số thứ tự
+const stt = data.users.length;
+
+await interaction.reply({
+  content:
+    `📌 **Số thứ tự của bạn: ${stt}**\n` +
+    `• Hãy vào room **sớm 30 phút** trước khi bắt đầu sự kiện.`,
+  ephemeral: true
+});
 
   await interaction.reply({
     content: `✅ ${interaction.user} đã điểm danh!\n👥 Tổng: **${data.users.length}** người`,
