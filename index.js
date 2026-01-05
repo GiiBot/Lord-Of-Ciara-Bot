@@ -368,7 +368,7 @@ cron.schedule("0 17 * * *", openSession, { timezone: CONFIG.TIMEZONE });
 client.once("ready", () => {
   console.log(`✅ Bot online: ${client.user.tag}`);
 });
-const config = require("./config");
+
 
 
 /* ================== LOGIN ================== */
