@@ -19,10 +19,11 @@ const CONFIG = {
   DM_DELAY: 1200,
 
   SESSION_TIME: {
-    TRUA_START: 11,
-    TOI_START: 17,
-    END_HOUR: 23,
-  },
+  TRUA_START: 11,
+  TRUA_END: 16,
+  TOI_START: 17,
+  TOI_END: 22,
+},
 
   EMBED: {
     COLOR: "#ff3333",
@@ -75,15 +76,20 @@ function getCurrentSession() {
   return null;
 }
 
-function getSessionEndTime(session) {
-  const now = getVNTime();
-  const end = new Date(now);
-  if (session === "trua")
-    end.setHours(CONFIG.SESSION_TIME.TOI_START, 0, 0, 0);
-  else
-    end.setHours(CONFIG.SESSION_TIME.END_HOUR, 0, 0, 0);
-  return end.getTime();
+function getCurrentSession() {
+  const h = getVNTime().getHours();
+
+  if (h >= CONFIG.SESSION_TIME.TRUA_START && h < CONFIG.SESSION_TIME.TRUA_END) {
+    return "trua";
+  }
+
+  if (h >= CONFIG.SESSION_TIME.TOI_START && h < CONFIG.SESSION_TIME.TOI_END) {
+    return "toi";
+  }
+
+  return null; // 
 }
+
 
 /* ================== DATA ================== */
 function loadData() {
