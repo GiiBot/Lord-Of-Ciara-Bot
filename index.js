@@ -239,8 +239,8 @@ client.on("interactionCreate", async (interaction) => {
   await msg.edit({ embeds: [buildBoardEmbed(data)] });
 
   return replyEmbedCountdown(interaction, {
-    title: "✅ ĐIỂM DANH THÀNH CÔNG",
-    text: "Chúc bạn chơi vui 🔥",
+    title: "✅ĐÃ ĐIỂM DANH THÀNH CÔNG",
+    text: "Chúc mừng bạn còn chịu đau tốt 🔥",
     gif: REPLY_GIF.SUCCESS,
     color: "#4CAF50",
   });
