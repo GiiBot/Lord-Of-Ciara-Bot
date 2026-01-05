@@ -11,18 +11,46 @@ const {
 } = require("discord.js");
 
 /* ================== CLIENT ================== */
-async function replyAutoDelete(interaction, options, time = 5000) {
-  await interaction.deferReply({ ephemeral: true });
-  await interaction.editReply(options);
-
-  setTimeout(() => {
-    interaction.deleteReply().catch(() => {});
-  }, time);
-}
-
 const client = new Client({
   intents: [GatewayIntentBits.Guilds],
 });
+
+/* ================== AUTO DELETE + COUNTDOWN ================== */
+async function replyAutoDeleteWithCountdown(interaction, options, seconds = 5) {
+  let timeLeft = seconds;
+
+  const buildRow = (t) =>
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("countdown")
+        .setLabel(`⏳ Tự gỡ sau ${t}s`)
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true)
+    );
+
+  await interaction.deferReply({ ephemeral: true });
+  await interaction.editReply({
+    ...options,
+    components: [buildRow(timeLeft)],
+  });
+
+  const interval = setInterval(async () => {
+    timeLeft--;
+
+    if (timeLeft <= 0) {
+      clearInterval(interval);
+      interaction.deleteReply().catch(() => {});
+      return;
+    }
+
+    await interaction
+      .editReply({
+        ...options,
+        components: [buildRow(timeLeft)],
+      })
+      .catch(() => {});
+  }, 1000);
+}
 
 /* ================== DATA ================== */
 const DATA_FILE = "./data.json";
@@ -46,9 +74,9 @@ function saveData(data) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
-/* ================== EMBED BUILDERS ================== */
+/* ================== EMBEDS ================== */
 
-// Embed danh sách điểm danh (công khai)
+// Embed danh sách điểm danh (CÔNG KHAI)
 function buildAttendanceEmbed(data) {
   const list =
     data.users.length === 0
@@ -66,45 +94,37 @@ function buildAttendanceEmbed(data) {
     .setColor("#00ff99")
     .setDescription(
       "**Nhấn nút bên dưới để điểm danh!**\n\n" +
-        "**Lưu ý:**\n" +
         "• Mỗi người chỉ điểm danh 1 lần\n\n" +
         `👥 **Đã điểm danh:** ${data.users.length} người\n\n` +
         "🏆 **Danh sách điểm danh**\n" +
         list
     )
-    .setImage(
-      "https://media.giphy.com/media/26n6WywJyh39n1pBu/giphy.gif"
-    )
+    .setImage("https://media.giphy.com/media/26n6WywJyh39n1pBu/giphy.gif")
     .setFooter({ text: "LORD OF CIARA • Attendance System" })
     .setTimestamp();
 }
 
-// Embed trả về khi điểm danh thành công (RIÊNG)
+// Thành công
 function successEmbed(user, stt) {
   return new EmbedBuilder()
     .setColor("#4CAF50")
     .setTitle("✅ ĐIỂM DANH THÀNH CÔNG")
     .setDescription(
       `👤 **${user.username}**\n` +
-      `🔢 **Số thứ tự của bạn:** ${stt}\n\n` +
-      "⏰ *Hãy vào room sớm 30 phút trước khi bắt đầu sự kiện!*"
+        `🔢 **Số thứ tự của bạn:** ${stt}\n\n` +
+        "⏰ *Hãy vào room sớm 30 phút trước khi bắt đầu sự kiện!*"
     )
-    .setImage(
-      "https://media.giphy.com/media/3o7aD2saalBwwftBIY/giphy.gif"
-    )
-    .setFooter({ text: "Chúc bạn chơi vui 🔥" })
+    .setImage("https://media.giphy.com/media/3o7aD2saalBwwftBIY/giphy.gif")
     .setTimestamp();
 }
 
-// Embed lỗi (đã điểm danh)
+// Lỗi
 function errorEmbed(text) {
   return new EmbedBuilder()
     .setColor("#ff4d4d")
     .setTitle("❌ KHÔNG THỂ ĐIỂM DANH")
     .setDescription(text)
-    .setImage(
-      "https://media.giphy.com/media/26BRuo6sLetdllPAQ/giphy.gif"
-    )
+    .setImage("https://media.giphy.com/media/26BRuo6sLetdllPAQ/giphy.gif")
     .setTimestamp();
 }
 
@@ -121,18 +141,16 @@ client.once("ready", async () => {
     saveData(data);
   }
 
-  const embed = buildAttendanceEmbed(data);
-
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("diemdanh")
-      .setLabel("Điểm Danh")
-      .setStyle(ButtonStyle.Primary)
-  );
-
   const msg = await channel.send({
-    embeds: [embed],
-    components: [row],
+    embeds: [buildAttendanceEmbed(data)],
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("diemdanh")
+          .setLabel("Điểm Danh")
+          .setStyle(ButtonStyle.Primary)
+      ),
+    ],
   });
 
   attendanceMessageId = msg.id;
@@ -150,46 +168,4 @@ client.on("interactionCreate", async (interaction) => {
     data.users = [];
   }
 
-  // check role (nếu có)
-  if (process.env.ROLE_ID) {
-    if (!interaction.member.roles.cache.has(process.env.ROLE_ID)) {
-      return interaction.reply({
-        embeds: [errorEmbed("Bạn không có quyền điểm danh!")],
-        ephemeral: true,
-      });
-    }
-  }
-
-  // đã điểm danh
-  if (data.users.includes(interaction.user.id)) {
-    return interaction.reply({
-      embeds: [errorEmbed("Bạn đã điểm danh hôm nay rồi!")],
-      ephemeral: true,
-    });
-  }
-
-  // thêm user
-  data.users.push(interaction.user.id);
-  saveData(data);
-
-  // cập nhật embed công khai
-  const channel = interaction.channel;
-  const msg = await channel.messages.fetch(attendanceMessageId);
-  await msg.edit({ embeds: [buildAttendanceEmbed(data)] });
-
-  // trả embed riêng đẹp + gif
-  const stt = data.users.length;
-  await interaction.reply({
-    embeds: [successEmbed(interaction.user, stt)],
-    ephemeral: true,
-  });
-});
-
-/* ================== RESET 00:00 ================== */
-cron.schedule("0 0 * * *", () => {
-  saveData({ date: today(), users: [] });
-  console.log("🔄 Reset điểm danh mỗi ngày");
-});
-
-/* ================== LOGIN ================== */
-client.login(process.env.TOKEN);
+  //
