@@ -79,19 +79,22 @@ function getCurrentSession() {
 function getSessionEndTime(session) {
   const now = getVNTime();
   const end = new Date(now);
-  if (session === "trua")
+
+  if (session === "trua") {
     end.setHours(CONFIG.SESSION_TIME.TRUA_END, 0, 0, 0);
-  else
+  }
+
+  if (session === "toi") {
     end.setHours(CONFIG.SESSION_TIME.TOI_END, 0, 0, 0);
-  return end.getTime();
-}
- if (end.getTime() <= now.getTime()) {
+  }
+
+  // nếu đã quá giờ đóng → đóng luôn
+  if (end.getTime() <= now.getTime()) {
     return now.getTime();
   }
 
   return end.getTime();
 }
-
 /* ================== DATA ================== */
 function loadData() {
   if (!fs.existsSync(CONFIG.DATA_FILE)) {
@@ -106,11 +109,21 @@ function saveData(data) {
 /* ================== COUNTDOWN ================== */
 function getCountdownText() {
   if (!sessionEndTime) return "";
-  const diff = sessionEndTime - Date.now();
+
+  const now = getVNTime().getTime();
+  const diff = sessionEndTime - now;
+
   if (diff <= 0) return "⛔ **Điểm danh đã đóng**";
-  const m = Math.ceil(diff / 60000);
-  return `⏳ **Còn ${m} phút sẽ đóng**`;
+
+  const totalMin = Math.ceil(diff / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+
+  return h > 0
+    ? `⏳ **Còn ${h}h ${m}p sẽ đóng**`
+    : `⏳ **Còn ${m}p sẽ đóng**`;
 }
+
 
 /* ================== EMBED ================== */
 function buildBoardEmbed(data) {
