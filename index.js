@@ -264,7 +264,7 @@ client.on("messageCreate", async (message) => {
         await m.send(
           `🔔 **NHẮC ĐIỂM DANH – ${
             currentSession === "trua" ? "SỰ KIỆN TRƯA" : "SỰ KIỆN TỐI"
-          }**\n👉 Vào kênh <#${CONFIG.CHANNEL_ID}> để điểm danh`
+          }**\n👉 Nhấn vào kênh <#${CONFIG.CHANNEL_ID}> để điểm danh tham gia sự kiện cùng homiee`
         );
       } catch {}
       await new Promise((r) => setTimeout(r, CONFIG.DM_DELAY));
