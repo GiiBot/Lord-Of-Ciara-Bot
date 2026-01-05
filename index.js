@@ -34,13 +34,10 @@ function today() {
 client.once("ready", async () => {
   console.log(`✅ Bot online: ${client.user.tag}`);
 
-  // gửi bảng điểm danh
   const channel = await client.channels.fetch(process.env.CHANNEL_ID);
+  const data = loadData();
 
-  const embed = new EmbedBuilder()
-    .setTitle("📌 ĐIỂM DANH")
-    .setDescription("Nhấn nút bên dưới để điểm danh!\n\n⏰ Mỗi người chỉ 1 lần / ngày")
-    .setColor("Green");
+  const embed = buildAttendanceEmbed(data);
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -48,6 +45,23 @@ client.once("ready", async () => {
       .setLabel("Điểm Danh")
       .setStyle(ButtonStyle.Primary)
   );
+
+  const msg = await channel.send({
+    embeds: [embed],
+    components: [row],
+  });
+
+  attendanceMessageId = msg.id;
+});
+
+  const msg = await channel.send({
+    embeds: [embed],
+    components: [row],
+  });
+
+  attendanceMessageId = msg.id;
+});
+
 
   await channel.send({ embeds: [embed], components: [row] });
 });
