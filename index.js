@@ -67,20 +67,18 @@ function getVNTime() {
   );
 }
 
-/* ✅ FIX: DUY NHẤT 1 HÀM */
 function getCurrentSession() {
   const h = getVNTime().getHours();
 
-  if (h >= CONFIG.SESSION_TIME.TRUA_START && h < CONFIG.SESSION_TIME.TRUA_END) {
+  if (h >= CONFIG.SESSION_TIME.TRUA_START && h < CONFIG.SESSION_TIME.TRUA_END)
     return "trua";
-  }
-  if (h >= CONFIG.SESSION_TIME.TOI_START && h < CONFIG.SESSION_TIME.TOI_END) {
+
+  if (h >= CONFIG.SESSION_TIME.TOI_START && h < CONFIG.SESSION_TIME.TOI_END)
     return "toi";
-  }
+
   return null;
 }
 
-/* ✅ FIX: HÀM TÍNH GIỜ KẾT THÚC */
 function getSessionEndTime(session) {
   const now = getVNTime();
   const end = new Date(now);
@@ -155,10 +153,10 @@ async function replyEmbedCountdown(interaction, opt) {
 
   await interaction.reply({ embeds: [build()], ephemeral: true });
 
-  const i = setInterval(async () => {
+  const timer = setInterval(async () => {
     t--;
     if (t <= 0) {
-      clearInterval(i);
+      clearInterval(timer);
       interaction.deleteReply().catch(() => {});
       return;
     }
@@ -166,7 +164,7 @@ async function replyEmbedCountdown(interaction, opt) {
   }, 1000);
 }
 
-/* ================== DISABLE OLD ================== */
+/* ================== DISABLE OLD BOARD ================== */
 async function disableOldBoard(channel) {
   if (!attendanceMessageId) return;
   try {
@@ -188,6 +186,7 @@ async function disableOldBoard(channel) {
 /* ================== COUNTDOWN UPDATE ================== */
 function startCountdown(channel) {
   if (countdownInterval) clearInterval(countdownInterval);
+
   countdownInterval = setInterval(async () => {
     try {
       const msg = await channel.messages.fetch(attendanceMessageId);
@@ -199,7 +198,7 @@ function startCountdown(channel) {
   }, 60 * 1000);
 }
 
-/* ================== OPEN SESSION ================== */
+/* ================== OPEN SESSION (AUTO) ================== */
 async function openSession() {
   const session = getCurrentSession();
   if (!session) return;
@@ -228,14 +227,21 @@ async function openSession() {
   startCountdown(channel);
 }
 
-/* ================== RESEND ================== */
+/* ================== RESEND (FIX HOÀN TOÀN) ================== */
 async function resendBoard() {
-  if (!currentSession) return;
+  const session = getCurrentSession();
+  if (!session) return;
+
+  currentSession = session;
+  sessionEndTime = getSessionEndTime(session);
+
   const channel = await client.channels.fetch(CONFIG.CHANNEL_ID);
   await disableOldBoard(channel);
 
   const data = loadData();
+
   const msg = await channel.send({
+    content: "🔁 **GỬI LẠI BẢNG ĐIỂM DANH**",
     embeds: [buildBoardEmbed(data)],
     components: [
       new ActionRowBuilder().addComponents(
@@ -254,7 +260,12 @@ async function resendBoard() {
 
 /* ================== REMIND DM ================== */
 async function remindDM() {
-  if (!currentSession) return;
+  const session = getCurrentSession();
+  if (!session) return;
+
+  currentSession = session;
+  sessionEndTime = getSessionEndTime(session);
+
   const channel = await client.channels.fetch(CONFIG.CHANNEL_ID);
   const guild = channel.guild;
 
@@ -305,7 +316,7 @@ client.on("interactionCreate", async (interaction) => {
 
   return replyEmbedCountdown(interaction, {
     title: "✅ ĐIỂM DANH THÀNH CÔNG",
-    text: "Chúc bạn chơi vui 🔥",
+    text: "Chúc bạn chịu đau giỏi hơn 🔥",
     gif: REPLY_GIF.SUCCESS,
     color: "#4CAF50",
   });
