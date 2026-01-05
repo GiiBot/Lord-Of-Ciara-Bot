@@ -1,5 +1,6 @@
 require("dotenv").config();
 const fs = require("fs");
+const path = require("path");
 const cron = require("node-cron");
 const {
   Client,
@@ -8,56 +9,32 @@ const {
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
+  PermissionsBitField,
 } = require("discord.js");
 
 /* ================== CLIENT ================== */
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
 });
 
-/* ================== AUTO DELETE + COUNTDOWN ================== */
-async function replyAutoDeleteWithCountdown(interaction, options, seconds = 15) {
-  let timeLeft = seconds;
-
-  const buildRow = (t) =>
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("countdown")
-        .setLabel(`⏳ Tự gỡ sau ${t}s`)
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(true)
-    );
-
-  await interaction.deferReply({ ephemeral: true });
-  await interaction.editReply({
-    ...options,
-    components: [buildRow(timeLeft)],
-  });
-
-  const interval = setInterval(async () => {
-    timeLeft--;
-    if (timeLeft <= 0) {
-      clearInterval(interval);
-      interaction.deleteReply().catch(() => {});
-      return;
-    }
-    await interaction
-      .editReply({
-        ...options,
-        components: [buildRow(timeLeft)],
-      })
-      .catch(() => {});
-  }, 1000);
-}
-
-/* ================== DATA ================== */
+/* ================== CONFIG ================== */
+const ROLE_11H = "SỰ KIỆN 11H";
+const ROLE_17H = "SỰ KIỆN 17H";
 const DATA_FILE = "./data.json";
 let attendanceMessageId = null;
+let currentRoleName = null;
 
+/* ================== TIME ================== */
 function today() {
   return new Date().toLocaleDateString("vi-VN");
 }
 
+/* ================== DATA ================== */
 function loadData() {
   if (!fs.existsSync(DATA_FILE)) {
     fs.writeFileSync(
@@ -67,49 +44,119 @@ function loadData() {
   }
   return JSON.parse(fs.readFileSync(DATA_FILE));
 }
-
 function saveData(data) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
+/* ================== LOG ================== */
+function writeLog(text) {
+  const logsDir = "./logs";
+  if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir);
+
+  const date = new Date();
+  const fileName = `attendance-${date.toISOString().slice(0, 10)}.log`;
+  const filePath = path.join(logsDir, fileName);
+
+  const time = date.toLocaleTimeString("vi-VN");
+  fs.appendFileSync(filePath, `[${time}] ${text}\n`);
+}
+
+async function uploadTodayLog(note = "") {
+  try {
+    const logChannel = await client.channels.fetch(
+      process.env.LOG_CHANNEL_ID
+    );
+    const date = new Date().toISOString().slice(0, 10);
+    const filePath = `./logs/attendance-${date}.log`;
+    if (!fs.existsSync(filePath)) return;
+
+    await logChannel.send({
+      content:
+        `📄 **LOG ĐIỂM DANH ${date}**` +
+        (note ? `\n📝 ${note}` : ""),
+      files: [filePath],
+    });
+  } catch (e) {
+    console.error("Upload log lỗi:", e.message);
+  }
+}
+
+/* ================== AUTO DELETE + COUNTDOWN ================== */
+async function replyAutoDeleteWithCountdown(interaction, embeds, seconds = 15) {
+  let t = seconds;
+
+  const row = (x) =>
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("countdown")
+        .setLabel(`⏳ Tự gỡ sau ${x}s`)
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true)
+    );
+
+  await interaction.deferReply({ ephemeral: true });
+  await interaction.editReply({ embeds, components: [row(t)] });
+
+  const i = setInterval(async () => {
+    t--;
+    if (t <= 0) {
+      clearInterval(i);
+      interaction.deleteReply().catch(() => {});
+      return;
+    }
+    await interaction
+      .editReply({ embeds, components: [row(t)] })
+      .catch(() => {});
+  }, 1000);
+}
+
+/* ================== ROLE ================== */
+async function getOrCreateRole(guild, name) {
+  let role = guild.roles.cache.find((r) => r.name === name);
+  if (!role) {
+    role = await guild.roles.create({
+      name,
+      color: "Blue",
+      permissions: [],
+      hoist: false,
+      mentionable: false,
+      reason: "Role đánh dấu điểm danh",
+    });
+  }
+  return role;
+}
+
+async function removeRoleFromAll(guild, name) {
+  const role = guild.roles.cache.find((r) => r.name === name);
+  if (!role) return;
+  for (const m of role.members.values()) {
+    await m.roles.remove(role).catch(() => {});
+  }
+}
+
 /* ================== EMBEDS ================== */
-function buildAttendanceEmbed(data, sessionName) {
+function buildAttendanceEmbed(data, title) {
   const list =
     data.users.length === 0
       ? "_Chưa có ai điểm danh_"
-      : data.users
-          .slice(0, 20)
-          .map((id, i) => `${i + 1}. <@${id}>`)
-          .join("\n") +
-        (data.users.length > 20
-          ? `\n…và ${data.users.length - 20} người khác`
-          : "");
+      : data.users.map((id, i) => `${i + 1}. <@${id}>`).join("\n");
 
   return new EmbedBuilder()
-    .setTitle(`📌 ĐIỂM DANH – ${sessionName}`)
+    .setTitle(`📌 ĐIỂM DANH – ${title}`)
     .setColor("#00ff99")
     .setDescription(
-      "**Nhấn nút bên dưới để điểm danh!**\n\n" +
-        `👥 **Đã điểm danh:** ${data.users.length} người\n\n` +
-        "🏆 **Danh sách điểm danh**\n" +
-        list
+      `👥 **Đã điểm danh:** ${data.users.length} người\n\n${list}`
     )
     .setImage("https://media.giphy.com/media/26n6WywJyh39n1pBu/giphy.gif")
-    .setFooter({ text: "LORD OF CIARA • Attendance System" })
     .setTimestamp();
 }
 
-function successEmbed(user, stt) {
+function successEmbed(user, role) {
   return new EmbedBuilder()
     .setColor("#4CAF50")
     .setTitle("✅ ĐIỂM DANH THÀNH CÔNG")
-    .setDescription(
-      `👤 **${user.username}**\n` +
-        `🔢 **Số thứ tự của bạn:** ${stt}\n\n` +
-        "⏰ *Cảm ơn bạn đã điểm danh!*"
-    )
-    .setImage("https://media.giphy.com/media/3o7aD2saalBwwftBIY/giphy.gif")
-    .setTimestamp();
+    .setDescription(`👤 ${user.username}\n🎭 Role: **${role}**`)
+    .setImage("https://media.giphy.com/media/3o7aD2saalBwwftBIY/giphy.gif");
 }
 
 function errorEmbed(text) {
@@ -117,23 +164,29 @@ function errorEmbed(text) {
     .setColor("#ff4d4d")
     .setTitle("❌ KHÔNG THỂ ĐIỂM DANH")
     .setDescription(text)
-    .setImage("https://media.giphy.com/media/26BRuo6sLetdllPAQ/giphy.gif")
-    .setTimestamp();
+    .setImage("https://media.giphy.com/media/26BRuo6sLetdllPAQ/giphy.gif");
 }
 
-/* ================== SEND NEW SESSION ================== */
-async function sendAttendanceSession(sessionName) {
+/* ================== OPEN SESSION ================== */
+async function openSession(type, byAdmin = false) {
   const channel = await client.channels.fetch(process.env.CHANNEL_ID);
+  const guild = channel.guild;
 
-  const data = { date: today(), users: [] };
-  saveData(data);
+  const isMorning = type === "sang";
+  const roleName = isMorning ? ROLE_11H : ROLE_17H;
+  const oldRole = isMorning ? ROLE_17H : ROLE_11H;
+  const title = isMorning ? "CA SÁNG 11H" : "CA CHIỀU 17H";
 
-  await channel.send({
-    content: "@everyone ⏰ **Đã tới giờ điểm danh!**",
-  });
+  currentRoleName = roleName;
+  saveData({ date: today(), users: [] });
+
+  await removeRoleFromAll(guild, oldRole);
+  await getOrCreateRole(guild, roleName);
+
+  await channel.send({ content: "@everyone ⏰ **Đã mở điểm danh!**" });
 
   const msg = await channel.send({
-    embeds: [buildAttendanceEmbed(data, sessionName)],
+    embeds: [buildAttendanceEmbed(loadData(), title)],
     components: [
       new ActionRowBuilder().addComponents(
         new ButtonBuilder()
@@ -145,23 +198,13 @@ async function sendAttendanceSession(sessionName) {
   });
 
   attendanceMessageId = msg.id;
+  writeLog(`MỞ CA: ${title}`);
+  await uploadTodayLog(byAdmin ? "Admin resend" : "Tự động");
 }
 
-/* ================== READY ================== */
-client.once("ready", async () => {
-  console.log(`✅ Bot online: ${client.user.tag}`);
-});
-
-/* ================== CRON – 2 KHUNG GIỜ ================== */
-// 11:00 sáng
-cron.schedule("0 11 * * *", () => {
-  sendAttendanceSession("CA SÁNG 11:00");
-});
-
-// 17:00 chiều
-cron.schedule("0 17 * * *", () => {
-  sendAttendanceSession("CA CHIỀU 17:00");
-});
+/* ================== CRON ================== */
+cron.schedule("0 11 * * *", () => openSession("sang"));
+cron.schedule("0 17 * * *", () => openSession("chieu"));
 
 /* ================== BUTTON ================== */
 client.on("interactionCreate", async (interaction) => {
@@ -169,29 +212,51 @@ client.on("interactionCreate", async (interaction) => {
   if (interaction.customId !== "diemdanh") return;
 
   const data = loadData();
-
   if (data.users.includes(interaction.user.id)) {
+    writeLog(`TỪ CHỐI | ${interaction.user.tag}`);
     return replyAutoDeleteWithCountdown(
       interaction,
-      { embeds: [errorEmbed("Bạn đã điểm danh ca này rồi!")] },
+      [errorEmbed("Bạn đã điểm danh ca này rồi!")],
       15
     );
   }
 
   data.users.push(interaction.user.id);
   saveData(data);
+  writeLog(`ĐIỂM DANH | ${interaction.user.tag} | ${currentRoleName}`);
+
+  const role = interaction.guild.roles.cache.find(
+    (r) => r.name === currentRoleName
+  );
+  if (role) await interaction.member.roles.add(role).catch(() => {});
 
   const msg = await interaction.channel.messages.fetch(attendanceMessageId);
   await msg.edit({
-    embeds: [buildAttendanceEmbed(data, "ĐANG DIỄN RA")],
+    embeds: [buildAttendanceEmbed(data, currentRoleName)],
   });
 
-  const stt = data.users.length;
   await replyAutoDeleteWithCountdown(
     interaction,
-    { embeds: [successEmbed(interaction.user, stt)] },
+    [successEmbed(interaction.user, currentRoleName)],
     15
   );
+});
+
+/* ================== ADMIN COMMAND ================== */
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
+  if (
+    !message.member.permissions.has(PermissionsBitField.Flags.Administrator)
+  )
+    return;
+
+  if (message.content === "!resend sang") openSession("sang", true);
+  if (message.content === "!resend chieu") openSession("chieu", true);
+});
+
+/* ================== READY ================== */
+client.once("ready", () => {
+  console.log(`✅ Bot online: ${client.user.tag}`);
 });
 
 /* ================== LOGIN ================== */
