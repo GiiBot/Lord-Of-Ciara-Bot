@@ -16,7 +16,7 @@ const client = new Client({
 });
 
 /* ================== AUTO DELETE + COUNTDOWN ================== */
-async function replyAutoDeleteWithCountdown(interaction, options, seconds = 5) {
+async function replyAutoDeleteWithCountdown(interaction, options, seconds = 15) {
   let timeLeft = seconds;
 
   const buildRow = (t) =>
@@ -36,13 +36,11 @@ async function replyAutoDeleteWithCountdown(interaction, options, seconds = 5) {
 
   const interval = setInterval(async () => {
     timeLeft--;
-
     if (timeLeft <= 0) {
       clearInterval(interval);
       interaction.deleteReply().catch(() => {});
       return;
     }
-
     await interaction
       .editReply({
         ...options,
@@ -75,9 +73,7 @@ function saveData(data) {
 }
 
 /* ================== EMBEDS ================== */
-
-// Embed danh sách điểm danh (CÔNG KHAI)
-function buildAttendanceEmbed(data) {
+function buildAttendanceEmbed(data, sessionName) {
   const list =
     data.users.length === 0
       ? "_Chưa có ai điểm danh_"
@@ -90,11 +86,10 @@ function buildAttendanceEmbed(data) {
           : "");
 
   return new EmbedBuilder()
-    .setTitle("📌 ĐIỂM DANH")
+    .setTitle(`📌 ĐIỂM DANH – ${sessionName}`)
     .setColor("#00ff99")
     .setDescription(
       "**Nhấn nút bên dưới để điểm danh!**\n\n" +
-        "• Mỗi người chỉ điểm danh 1 lần\n\n" +
         `👥 **Đã điểm danh:** ${data.users.length} người\n\n` +
         "🏆 **Danh sách điểm danh**\n" +
         list
@@ -104,7 +99,6 @@ function buildAttendanceEmbed(data) {
     .setTimestamp();
 }
 
-// Thành công
 function successEmbed(user, stt) {
   return new EmbedBuilder()
     .setColor("#4CAF50")
@@ -112,13 +106,12 @@ function successEmbed(user, stt) {
     .setDescription(
       `👤 **${user.username}**\n` +
         `🔢 **Số thứ tự của bạn:** ${stt}\n\n` +
-        "⏰ *Hãy vào room sớm 30 phút trước khi bắt đầu sự kiện!*"
+        "⏰ *Cảm ơn bạn đã điểm danh!*"
     )
     .setImage("https://media.giphy.com/media/3o7aD2saalBwwftBIY/giphy.gif")
     .setTimestamp();
 }
 
-// Lỗi
 function errorEmbed(text) {
   return new EmbedBuilder()
     .setColor("#ff4d4d")
@@ -128,21 +121,19 @@ function errorEmbed(text) {
     .setTimestamp();
 }
 
-/* ================== READY ================== */
-client.once("ready", async () => {
-  console.log(`✅ Bot online: ${client.user.tag}`);
-
+/* ================== SEND NEW SESSION ================== */
+async function sendAttendanceSession(sessionName) {
   const channel = await client.channels.fetch(process.env.CHANNEL_ID);
-  const data = loadData();
 
-  if (data.date !== today()) {
-    data.date = today();
-    data.users = [];
-    saveData(data);
-  }
+  const data = { date: today(), users: [] };
+  saveData(data);
+
+  await channel.send({
+    content: "@everyone ⏰ **Đã tới giờ điểm danh!**",
+  });
 
   const msg = await channel.send({
-    embeds: [buildAttendanceEmbed(data)],
+    embeds: [buildAttendanceEmbed(data, sessionName)],
     components: [
       new ActionRowBuilder().addComponents(
         new ButtonBuilder()
@@ -154,6 +145,22 @@ client.once("ready", async () => {
   });
 
   attendanceMessageId = msg.id;
+}
+
+/* ================== READY ================== */
+client.once("ready", async () => {
+  console.log(`✅ Bot online: ${client.user.tag}`);
+});
+
+/* ================== CRON – 2 KHUNG GIỜ ================== */
+// 11:00 sáng
+cron.schedule("0 11 * * *", () => {
+  sendAttendanceSession("CA SÁNG 11:00");
+});
+
+// 17:00 chiều
+cron.schedule("0 17 * * *", () => {
+  sendAttendanceSession("CA CHIỀU 17:00");
 });
 
 /* ================== BUTTON ================== */
@@ -163,52 +170,28 @@ client.on("interactionCreate", async (interaction) => {
 
   const data = loadData();
 
-  if (data.date !== today()) {
-    data.date = today();
-    data.users = [];
-  }
-
-  // check role
-  if (process.env.ROLE_ID) {
-    if (!interaction.member.roles.cache.has(process.env.ROLE_ID)) {
-      return replyAutoDeleteWithCountdown(
-        interaction,
-        { embeds: [errorEmbed("Bạn không có quyền điểm danh!")] },
-        5
-      );
-    }
-  }
-
-  // đã điểm danh
   if (data.users.includes(interaction.user.id)) {
     return replyAutoDeleteWithCountdown(
       interaction,
-      { embeds: [errorEmbed("Bạn đã điểm danh hôm nay rồi!")] },
-      5
+      { embeds: [errorEmbed("Bạn đã điểm danh ca này rồi!")] },
+      15
     );
   }
 
-  // thêm user
   data.users.push(interaction.user.id);
   saveData(data);
 
-  // cập nhật embed công khai (KHÔNG BAO GIỜ GỠ)
   const msg = await interaction.channel.messages.fetch(attendanceMessageId);
-  await msg.edit({ embeds: [buildAttendanceEmbed(data)] });
+  await msg.edit({
+    embeds: [buildAttendanceEmbed(data, "ĐANG DIỄN RA")],
+  });
 
-  // reply riêng + countdown + auto gỡ
   const stt = data.users.length;
   await replyAutoDeleteWithCountdown(
     interaction,
     { embeds: [successEmbed(interaction.user, stt)] },
-    5
+    15
   );
-});
-
-/* ================== RESET 00:00 ================== */
-cron.schedule("0 0 * * *", () => {
-  saveData({ date: today(), users: [] });
-  console.log("🔄 Reset điểm danh mỗi ngày");
 });
 
 /* ================== LOGIN ================== */
