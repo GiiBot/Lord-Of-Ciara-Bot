@@ -168,4 +168,48 @@ client.on("interactionCreate", async (interaction) => {
     data.users = [];
   }
 
-  //
+  // check role
+  if (process.env.ROLE_ID) {
+    if (!interaction.member.roles.cache.has(process.env.ROLE_ID)) {
+      return replyAutoDeleteWithCountdown(
+        interaction,
+        { embeds: [errorEmbed("Bạn không có quyền điểm danh!")] },
+        5
+      );
+    }
+  }
+
+  // đã điểm danh
+  if (data.users.includes(interaction.user.id)) {
+    return replyAutoDeleteWithCountdown(
+      interaction,
+      { embeds: [errorEmbed("Bạn đã điểm danh hôm nay rồi!")] },
+      5
+    );
+  }
+
+  // thêm user
+  data.users.push(interaction.user.id);
+  saveData(data);
+
+  // cập nhật embed công khai (KHÔNG BAO GIỜ GỠ)
+  const msg = await interaction.channel.messages.fetch(attendanceMessageId);
+  await msg.edit({ embeds: [buildAttendanceEmbed(data)] });
+
+  // reply riêng + countdown + auto gỡ
+  const stt = data.users.length;
+  await replyAutoDeleteWithCountdown(
+    interaction,
+    { embeds: [successEmbed(interaction.user, stt)] },
+    5
+  );
+});
+
+/* ================== RESET 00:00 ================== */
+cron.schedule("0 0 * * *", () => {
+  saveData({ date: today(), users: [] });
+  console.log("🔄 Reset điểm danh mỗi ngày");
+});
+
+/* ================== LOGIN ================== */
+client.login(process.env.TOKEN);
