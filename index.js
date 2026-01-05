@@ -27,9 +27,9 @@ const CONFIG = {
 
   EMBED: {
     COLOR: "#ff3333",
-    FOOTER: "LORD OF CIARA • Attendance System",
-    GIF_TRUA: "https://media.giphy.com/media/3ohzdIuqJoo8QdKlnW/giphy.gif",
-    GIF_TOI: "https://media.giphy.com/media/l0HlNQ03J5JxX6lva/giphy.gif",
+    FOOTER: "LORD OF CIARA • TOP NHỮNG NGƯỜI CHỊU ĐAU GIỎI NHẤT RPV",
+    GIF_TRUA: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMnZzd251dGI1Y2ozamxzbXRweXBhNmpxNnk1dm5zc25mbmNrenhqZCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/jzHFPlw89eTqU/giphy.gif",
+    GIF_TOI: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMnZzd251dGI1Y2ozamxzbXRweXBhNmpxNnk1dm5zc25mbmNrenhqZCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/LLsUNd14gwSkSLYTcR/giphy.gif",
   },
 
   BUTTON: {
@@ -39,9 +39,9 @@ const CONFIG = {
 };
 
 const REPLY_GIF = {
-  SUCCESS: "https://media.giphy.com/media/3o7aD2saalBwwftBIY/giphy.gif",
-  ERROR: "https://media.giphy.com/media/26BRuo6sLetdllPAQ/giphy.gif",
-  CLOSED: "https://media.giphy.com/media/l3vR85PnGsBwu1PFK/giphy.gif",
+  SUCCESS: "https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3eGdkamtzc3JpOGlsamd3ZGUzbmN1dnZvcjRweDJ5c3liY3ZxcHptNiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/kJKiGH3pwDpIFekymA/giphy.gif",
+  ERROR: "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExbTM5Y3h6eXM4aHhtbDdxZjdpNXZla284bXplZWcxc2RmaWN4ZWU0dCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/VUhn4clMyitnG/giphy.gif",
+  CLOSED: "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExejBpeml6NTJlbWY3b2k5dHBrb3Y5MzAxMGozdWdkNTFwenNodng1NyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/k63gNYkfIxbwY/giphy.gif",
 };
 
 /* ================== CLIENT ================== */
