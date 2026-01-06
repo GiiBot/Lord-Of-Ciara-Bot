@@ -1,7 +1,43 @@
+Skip to content
+Navigation Menu
+GiiBot
+Lord-Of-Ciara-Bot
+
+Type / to search
+Code
+Issues
+Pull requests
+Actions
+Projects
+Wiki
+Security
+Insights
+Settings
+Files
+Go to file
+t
+.gitignore
+data.json
+index.js
+package.json
+Lord-Of-Ciara-Bot
+/index.js
+GiiBot
+GiiBot
+Update index.js
+50eeb34
+ · 
+3 hours ago
+Lord-Of-Ciara-Bot
+/index.js
+
+Code
+
+Blame
+321 lines (270 loc) · 9.46 KB
 require("dotenv").config();
 const fs = require("fs");
 const cron = require("node-cron");
-
 const {
   Client,
   GatewayIntentBits,
@@ -12,11 +48,7 @@ const {
   PermissionsBitField,
 } = require("discord.js");
 
-// ✅ IMPORT AUTO NOTIFY (FIX LỖI)
-const { startAutoNotify } = require("./autoNotify");
-
 /* ================== CONFIG ================== */
-
 const CONFIG = {
   TIMEZONE: "Asia/Ho_Chi_Minh",
   CHANNEL_ID: process.env.CHANNEL_ID,
@@ -33,10 +65,8 @@ const CONFIG = {
   EMBED: {
     COLOR: "#ff3333",
     FOOTER: "LORD OF CIARA • TOP NHỮNG NGƯỜI CHỊU ĐAU GIỎI NHẤT RPV",
-    GIF_TRUA:
-      "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMnZzd251dGI1Y2ozamxzbXRweXBhNmpxNnk1dm5zc25mbmNrenhqZCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/jzHFPlw89eTqU/giphy.gif",
-    GIF_TOI:
-      "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMnZzd251dGI1Y2ozamxzbXRweXBhNmpxNnk1dm5zc25mbmNrenhqZCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/LLsUNd14gwSkSLYTcR/giphy.gif",
+    GIF_TRUA: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMnZzd251dGI1Y2ozamxzbXRweXBhNmpxNnk1dm5zc25mbmNrenhqZCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/jzHFPlw89eTqU/giphy.gif",
+    GIF_TOI: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMnZzd251dGI1Y2ozamxzbXRweXBhNmpxNnk1dm5zc25mbmNrenhqZCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/LLsUNd14gwSkSLYTcR/giphy.gif",
   },
 
   BUTTON: {
@@ -46,12 +76,9 @@ const CONFIG = {
 };
 
 const REPLY_GIF = {
-  SUCCESS:
-    "https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3eGdkamtzc3JpOGlsamd3ZGUzbmN1dnZvcjRweDJ5c3liY3ZxcHptNiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/kJKiGH3pwDpIFekymA/giphy.gif",
-  ERROR:
-    "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExbTM5Y3h6eXM4aHhtbDdxZjdpNXZla284bXplZWcxc2RmaWN4ZWU0dCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/VUhn4clMyitnG/giphy.gif",
-  CLOSED:
-    "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExejBpeml6NTJlbWY3b2k5dHBrb3Y5MzAxMGozdWdkNTFwenNodng1NyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/k63gNYkfIxbwY/giphy.gif",
+  SUCCESS: "https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3eGdkamtzc3JpOGlsamd3ZGUzbmN1dnZvcjRweDJ5c3liY3ZxcHptNiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/kJKiGH3pwDpIFekymA/giphy.gif",
+  ERROR: "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExbTM5Y3h6eXM4aHhtbDdxZjdpNXZla284bXplZWcxc2RmaWN4ZWU0dCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/VUhn4clMyitnG/giphy.gif",
+  CLOSED: "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExejBpeml6NTJlbWY3b2k5dHBrb3Y5MzAxMGozdWdkNTFwenNodng1NyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/k63gNYkfIxbwY/giphy.gif",
 };
 
 /* ================== CLIENT ================== */
@@ -68,6 +95,7 @@ const client = new Client({
 let attendanceMessageId = null;
 let currentSession = null;
 let sessionEndTime = null;
+let countdownInterval = null;
 
 /* ================== TIME ================== */
 function getVNTime() {
@@ -89,14 +117,21 @@ function getSessionEndTime(session) {
   const now = getVNTime();
   const end = new Date(now);
 
-  if (session === "trua")
+  if (session === "trua") {
     end.setHours(CONFIG.SESSION_TIME.TRUA_END, 0, 0, 0);
-  if (session === "toi")
+  }
+
+  if (session === "toi") {
     end.setHours(CONFIG.SESSION_TIME.TOI_END, 0, 0, 0);
+  }
 
-  return end.getTime() <= now.getTime() ? now.getTime() : end.getTime();
+  // nếu đã quá giờ đóng → đóng luôn
+  if (end.getTime() <= now.getTime()) {
+    return now.getTime();
+  }
+
+  return end.getTime();
 }
-
 /* ================== DATA ================== */
 function loadData() {
   if (!fs.existsSync(CONFIG.DATA_FILE)) {
@@ -104,7 +139,6 @@ function loadData() {
   }
   return JSON.parse(fs.readFileSync(CONFIG.DATA_FILE));
 }
-
 function saveData(data) {
   fs.writeFileSync(CONFIG.DATA_FILE, JSON.stringify(data, null, 2));
 }
@@ -112,14 +146,21 @@ function saveData(data) {
 /* ================== COUNTDOWN ================== */
 function getCountdownText() {
   if (!sessionEndTime) return "";
-  const diff = sessionEndTime - getVNTime().getTime();
+
+  const now = getVNTime().getTime();
+  const diff = sessionEndTime - now;
+
   if (diff <= 0) return "⛔ **Điểm danh đã đóng**";
 
   const totalMin = Math.ceil(diff / 60000);
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
-  return h > 0 ? `⏳ **Còn ${h}h ${m}p sẽ đóng**` : `⏳ **Còn ${m}p sẽ đóng**`;
+
+  return h > 0
+    ? `⏳ **Còn ${h}h ${m}p sẽ đóng**`
+    : `⏳ **Còn ${m}p sẽ đóng**`;
 }
+
 
 /* ================== EMBED ================== */
 function buildBoardEmbed(data) {
@@ -134,69 +175,29 @@ function buildBoardEmbed(data) {
     .setTitle(`📌 ${isTrua ? "SỰ KIỆN TRƯA" : "SỰ KIỆN TỐI"}`)
     .setColor(CONFIG.EMBED.COLOR)
     .setDescription(
-      `🔥 **Điểm danh đang mở**\n👥 **Đã điểm danh:** ${
-        data.users.length
-      }\n${getCountdownText()}\n\n${list}`
+      `🔥 **Điểm danh đang mở**\n` +
+        `👥 **Đã điểm danh:** ${data.users.length}\n` +
+        `${getCountdownText()}\n\n${list}`
     )
     .setImage(isTrua ? CONFIG.EMBED.GIF_TRUA : CONFIG.EMBED.GIF_TOI)
     .setFooter({ text: CONFIG.EMBED.FOOTER })
     .setTimestamp();
 }
 
-/* ================== OPEN SESSION ================== */
-async function openSession() {
-  const session = getCurrentSession();
-  if (!session) return;
-
-  currentSession = session;
-  sessionEndTime = getSessionEndTime(session);
-  saveData({ users: [] });
-
-  const channel = await client.channels.fetch(CONFIG.CHANNEL_ID);
-
-  const msg = await channel.send({
-    content: "@everyone 🚨 **ĐÃ MỞ ĐIỂM DANH!**",
-    embeds: [buildBoardEmbed({ users: [] })],
-    components: [
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId("diemdanh")
-          .setLabel(CONFIG.BUTTON.LABEL)
-          .setStyle(CONFIG.BUTTON.STYLE)
-      ),
-    ],
-  });
-
-  attendanceMessageId = msg.id;
-  await msg.pin().catch(() => {});
-}
-
-/* ================== BUTTON ================== */
-client.on("interactionCreate", async (interaction) => {
-  if (!interaction.isButton() || interaction.customId !== "diemdanh") return;
-
-  if (!sessionEndTime || Date.now() > sessionEndTime)
-    return interaction.reply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("⛔ ĐIỂM DANH ĐÃ ĐÓNG")
-          .setColor("#999999")
-          .setImage(REPLY_GIF.CLOSED),
-      ],
-      ephemeral: true,
+/* ================== REPLY 15s ================== */
+async function replyEmbedCountdown(interaction, opt) {
+  let t = 15;
+  const build = () =>
+    new EmbedBuilder()
+      .setColor(opt.color)
+      .setTitle(opt.title)
+      .setDescription(`${opt.text}\n\n⏳ **Tự gỡ sau ${t}s**`)
+      .setImage(opt.gif)
+      .setFooter({ text: CONFIG.EMBED.FOOTER });
+      gif: REPLY_GIF.ERROR,
+      color: "#ff4444",
     });
-
-  const data = loadData();
-  if (data.users.includes(interaction.user.id))
-    return interaction.reply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("❌ ĐÃ ĐIỂM DANH")
-          .setColor("#ff4444")
-          .setImage(REPLY_GIF.ERROR),
-      ],
-      ephemeral: true,
-    });
+  }
 
   data.users.push(interaction.user.id);
   saveData(data);
@@ -205,15 +206,55 @@ client.on("interactionCreate", async (interaction) => {
   const msg = await channel.messages.fetch(attendanceMessageId);
   await msg.edit({ embeds: [buildBoardEmbed(data)] });
 
-  return interaction.reply({
-    embeds: [
-      new EmbedBuilder()
-        .setTitle("✅ ĐIỂM DANH THÀNH CÔNG")
-        .setColor("#4CAF50")
-        .setImage(REPLY_GIF.SUCCESS),
-    ],
-    ephemeral: true,
+  return replyEmbedCountdown(interaction, {
+    title: "✅ĐÃ ĐIỂM DANH THÀNH CÔNG",
+    text: "Chúc mừng bạn còn chịu đau tốt 🔥",
+    gif: REPLY_GIF.SUCCESS,
+    color: "#4CAF50",
   });
+});
+
+/* ================== ADMIN ================== */
+client.on("messageCreate", async (message) => {
+  if (
+    message.author.bot ||
+    !message.member.permissions.has(PermissionsBitField.Flags.Administrator)
+  )
+    return;
+
+  if (message.content === "!resend") resendBoard();
+
+  if (message.content === "!remind dm") {
+    const channel = await client.channels.fetch(CONFIG.CHANNEL_ID);
+    for (const m of channel.guild.members.cache.values()) {
+      if (m.user.bot) continue;
+      try {
+        await m.send(
+          `🔔 **NHẮC ĐIỂM DANH – ${
+            currentSession === "trua" ? "SỰ KIỆN TRƯA" : "SỰ KIỆN TỐI"
+          }**\n👉 Nhấn vào kênh <#${CONFIG.CHANNEL_ID}> để điểm danh tham gia sự kiện cùng homiee`
+        );
+      } catch {}
+      await new Promise((r) => setTimeout(r, CONFIG.DM_DELAY));
+    }
+    channel.send("📩 **Đã gửi DM nhắc điểm danh**");
+  }
+
+  if (message.content === "!log") {
+    const data = loadData();
+    const list =
+      data.users.length === 0
+        ? "_Không có ai điểm danh_"
+        : data.users.map((id, i) => `${i + 1}. <@${id}>`).join("\n");
+
+    const embed = new EmbedBuilder()
+      .setTitle("📋 LOG ĐIỂM DANH")
+      .setColor("#00ff99")
+      .setDescription(`👥 **Tổng:** ${data.users.length}\n\n${list}`)
+      .setFooter({ text: CONFIG.EMBED.FOOTER });
+
+    message.reply({ embeds: [embed] });
+  }
 });
 
 /* ================== CRON ================== */
@@ -223,10 +264,35 @@ cron.schedule("0 17 * * *", openSession, { timezone: CONFIG.TIMEZONE });
 /* ================== READY ================== */
 client.once("ready", () => {
   console.log(`✅ Bot online: ${client.user.tag}`);
-
-  // ✅ AUTO NOTIFY – FIXED
-  startAutoNotify(client);
 });
 
 /* ================== LOGIN ================== */
 client.login(process.env.TOKEN);
+Symbols
+Find definitions and references for functions and other symbols in this file by clicking a symbol below or in the code.
+Filter symbols
+r
+func
+getVNTime
+func
+getCurrentSession
+func
+getSessionEndTime
+func
+loadData
+func
+saveData
+func
+getCountdownText
+func
+buildBoardEmbed
+func
+replyEmbedCountdown
+func
+build
+func
+openSession
+func
+resendBoard
+ 
+Lord-Of-Ciara-Bot/index.js at main · GiiBot/Lord-Of-Ciara-Bot
