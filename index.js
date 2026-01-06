@@ -12,13 +12,7 @@ const {
 } = require("discord.js");
 
 /* ================== CONFIG ================== */
-const { startAutoNotify } = require("./autoNotify");
 
-// trong client.once("ready")
-client.once("ready", () => {
-  console.log(`✅ Bot online: ${client.user.tag}`);
-  startAutoNotify(client);
-});
 
 const CONFIG = {
   TIMEZONE: "Asia/Ho_Chi_Minh",
@@ -323,7 +317,9 @@ cron.schedule("0 17 * * *", openSession, { timezone: CONFIG.TIMEZONE });
 /* ================== READY ================== */
 client.once("ready", () => {
   console.log(`✅ Bot online: ${client.user.tag}`);
-});
 
+  // ✅ GỌI AUTO THÔNG BÁO Ở ĐÂY (AN TOÀN 100%)
+  startAutoNotify(client);
+});
 /* ================== LOGIN ================== */
 client.login(process.env.TOKEN);
