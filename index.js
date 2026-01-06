@@ -1,40 +1,3 @@
-Skip to content
-Navigation Menu
-GiiBot
-Lord-Of-Ciara-Bot
-
-Type / to search
-Code
-Issues
-Pull requests
-Actions
-Projects
-Wiki
-Security
-Insights
-Settings
-Files
-Go to file
-t
-.gitignore
-data.json
-index.js
-package.json
-Lord-Of-Ciara-Bot
-/index.js
-GiiBot
-GiiBot
-Update index.js
-50eeb34
- · 
-3 hours ago
-Lord-Of-Ciara-Bot
-/index.js
-
-Code
-
-Blame
-321 lines (270 loc) · 9.46 KB
 require("dotenv").config();
 const fs = require("fs");
 const cron = require("node-cron");
@@ -49,6 +12,8 @@ const {
 } = require("discord.js");
 
 /* ================== CONFIG ================== */
+
+
 const CONFIG = {
   TIMEZONE: "Asia/Ho_Chi_Minh",
   CHANNEL_ID: process.env.CHANNEL_ID,
@@ -194,6 +159,94 @@ async function replyEmbedCountdown(interaction, opt) {
       .setDescription(`${opt.text}\n\n⏳ **Tự gỡ sau ${t}s**`)
       .setImage(opt.gif)
       .setFooter({ text: CONFIG.EMBED.FOOTER });
+
+  await interaction.reply({ embeds: [build()], ephemeral: true });
+
+  const i = setInterval(async () => {
+    t--;
+    if (t <= 0) {
+      clearInterval(i);
+      interaction.deleteReply().catch(() => {});
+      return;
+    }
+    await interaction.editReply({ embeds: [build()] }).catch(() => {});
+  }, 1000);
+}
+
+/* ================== OPEN SESSION ================== */
+async function openSession() {
+  const session = getCurrentSession();
+  if (!session) return;
+
+  currentSession = session;
+  sessionEndTime = getSessionEndTime(session);
+  saveData({ users: [] });
+
+  const channel = await client.channels.fetch(CONFIG.CHANNEL_ID);
+
+  const msg = await channel.send({
+    content: "@everyone 🚨 **ĐÃ MỞ ĐIỂM DANH!**",
+    embeds: [buildBoardEmbed({ users: [] })],
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("diemdanh")
+          .setLabel(CONFIG.BUTTON.LABEL)
+          .setStyle(CONFIG.BUTTON.STYLE)
+      ),
+    ],
+  });
+
+  attendanceMessageId = msg.id;
+  await msg.pin().catch(() => {});
+}
+
+/* ================== RESEND ================== */
+async function resendBoard() {
+  const session = getCurrentSession();
+  if (!session) return;
+
+  currentSession = session;
+  sessionEndTime = getSessionEndTime(session);
+
+  const channel = await client.channels.fetch(CONFIG.CHANNEL_ID);
+  const data = loadData();
+
+  const msg = await channel.send({
+    content: "🔁 **GỬI LẠI BẢNG ĐIỂM DANH**",
+    embeds: [buildBoardEmbed(data)],
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("diemdanh")
+          .setLabel(CONFIG.BUTTON.LABEL)
+          .setStyle(CONFIG.BUTTON.STYLE)
+      ),
+    ],
+  });
+
+  attendanceMessageId = msg.id;
+  await msg.pin().catch(() => {});
+}
+
+/* ================== BUTTON ================== */
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isButton() || interaction.customId !== "diemdanh") return;
+
+  if (!sessionEndTime || Date.now() > sessionEndTime) {
+    return replyEmbedCountdown(interaction, {
+      title: "⛔ ĐIỂM DANH ĐÃ ĐÓNG",
+      text: "Sự kiện đã kết thúc.",
+      gif: REPLY_GIF.CLOSED,
+      color: "#999999",
+    });
+  }
+
+  const data = loadData();
+  if (data.users.includes(interaction.user.id)) {
+    return replyEmbedCountdown(interaction, {
+      title: "❌ ĐÃ ĐIỂM DANH",
+      text: "Bạn đã điểm danh rồi!",
       gif: REPLY_GIF.ERROR,
       color: "#ff4444",
     });
@@ -264,35 +317,7 @@ cron.schedule("0 17 * * *", openSession, { timezone: CONFIG.TIMEZONE });
 /* ================== READY ================== */
 client.once("ready", () => {
   console.log(`✅ Bot online: ${client.user.tag}`);
+  console.log(`🏠 Server: ${client.guilds.cache.size}`);
 });
-
 /* ================== LOGIN ================== */
 client.login(process.env.TOKEN);
-Symbols
-Find definitions and references for functions and other symbols in this file by clicking a symbol below or in the code.
-Filter symbols
-r
-func
-getVNTime
-func
-getCurrentSession
-func
-getSessionEndTime
-func
-loadData
-func
-saveData
-func
-getCountdownText
-func
-buildBoardEmbed
-func
-replyEmbedCountdown
-func
-build
-func
-openSession
-func
-resendBoard
- 
-Lord-Of-Ciara-Bot/index.js at main · GiiBot/Lord-Of-Ciara-Bot
