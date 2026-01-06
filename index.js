@@ -12,6 +12,14 @@ const {
 } = require("discord.js");
 
 /* ================== CONFIG ================== */
+const { startAutoNotify } = require("./autoNotify");
+
+// trong client.once("ready")
+client.once("ready", () => {
+  console.log(`✅ Bot online: ${client.user.tag}`);
+  startAutoNotify(client);
+});
+
 const CONFIG = {
   TIMEZONE: "Asia/Ho_Chi_Minh",
   CHANNEL_ID: process.env.CHANNEL_ID,
