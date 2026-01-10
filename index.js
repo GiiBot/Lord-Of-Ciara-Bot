@@ -101,10 +101,18 @@ function getSessionEndTime(session) {
 /* ================== DATA ================== */
 function loadData() {
   if (!fs.existsSync(CONFIG.DATA_FILE)) {
-    fs.writeFileSync(CONFIG.DATA_FILE, JSON.stringify({ users: [] }, null, 2));
+    fs.writeFileSync(
+      CONFIG.DATA_FILE,
+      JSON.stringify({ users: [], records: [] }, null, 2)
+    );
   }
-  return JSON.parse(fs.readFileSync(CONFIG.DATA_FILE));
+
+  const data = JSON.parse(fs.readFileSync(CONFIG.DATA_FILE));
+  if (!data.users) data.users = [];
+  if (!data.records) data.records = [];
+  return data;
 }
+
 function saveData(data) {
   fs.writeFileSync(CONFIG.DATA_FILE, JSON.stringify(data, null, 2));
 }
@@ -180,6 +188,62 @@ async function autoSendLog() {
   await logChannel.send({ embeds: [embed] });
 }
 
+/* ================== WEEKLY STATS ================== */
+async function sendWeeklyStats() {
+  if (!CONFIG.LOG_CHANNEL_ID) return;
+
+  const logChannel = await client.channels.fetch(CONFIG.LOG_CHANNEL_ID);
+  if (!logChannel) return;
+
+  const data = loadData();
+
+  const now = new Date(
+    new Date().toLocaleString("en-US", { timeZone: CONFIG.TIMEZONE })
+  );
+
+  // Lấy đầu tuần (thứ 2)
+  const day = now.getDay() === 0 ? 7 : now.getDay(); // CN = 7
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - (day - 1));
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  // Đếm số lần / user
+  const counter = {};
+
+  for (const r of data.records) {
+    const t = new Date(r.time);
+    if (t >= startOfWeek && t <= now) {
+      counter[r.userId] = (counter[r.userId] || 0) + 1;
+    }
+  }
+
+  const entries = Object.entries(counter).sort((a, b) => b[1] - a[1]);
+
+  const list =
+    entries.length === 0
+      ? "_Không có ai điểm danh tuần này_"
+      : entries
+          .map(
+            ([id, count], i) =>
+              `${i + 1}. <@${id}> — **${count} lần**`
+          )
+          .join("\n");
+
+  const embed = new EmbedBuilder()
+    .setTitle("📊 THỐNG KÊ ĐIỂM DANH TUẦN")
+    .setColor("#ffaa00")
+    .setDescription(
+      `🗓️ **Tuần:** Thứ 2 → Thứ 7\n` +
+      `⏰ **Chốt:** 20:00 Thứ 7 (VN)\n\n` +
+      `👥 **Số người tham gia:** ${entries.length}\n\n${list}`
+    )
+    .setFooter({ text: CONFIG.EMBED.FOOTER })
+    .setTimestamp();
+
+  await logChannel.send({ embeds: [embed] });
+}
+
+
 
 /* ================== REPLY 15s ================== */
 async function replyEmbedCountdown(interaction, opt) {
@@ -212,7 +276,10 @@ async function openSession() {
 
   currentSession = session;
   sessionEndTime = getSessionEndTime(session);
-  saveData({ users: [] });
+  const data = loadData();
+  data.users = [];
+  saveData(data);
+
 
   const channel = await client.channels.fetch(CONFIG.CHANNEL_ID);
 
@@ -345,6 +412,12 @@ client.on("messageCreate", async (message) => {
 /* ================== CRON ================== */
 cron.schedule("0 11 * * *", openSession, { timezone: CONFIG.TIMEZONE });
 cron.schedule("0 17 * * *", openSession, { timezone: CONFIG.TIMEZONE });
+cron.schedule(
+  "0 20 * * 6",
+  sendWeeklyStats,
+  { timezone: CONFIG.TIMEZONE }
+);
+
 
 /* ================== READY ================== */
 client.once("ready", () => {
