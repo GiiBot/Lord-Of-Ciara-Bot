@@ -17,6 +17,7 @@ const {
 const CONFIG = {
   TIMEZONE: "Asia/Ho_Chi_Minh",
   CHANNEL_ID: process.env.CHANNEL_ID,
+  LOG_CHANNEL_ID: process.env.LOG_CHANNEL_ID,
   DATA_FILE: "./data.json",
   DM_DELAY: 1200,
 
@@ -148,6 +149,37 @@ function buildBoardEmbed(data) {
     .setFooter({ text: CONFIG.EMBED.FOOTER })
     .setTimestamp();
 }
+
+/* ================== AUTO LOG ================== */
+async function autoSendLog() {
+  if (!CONFIG.LOG_CHANNEL_ID) return;
+
+  const logChannel = await client.channels.fetch(CONFIG.LOG_CHANNEL_ID);
+  if (!logChannel) return;
+
+  const data = loadData();
+
+  const list =
+    data.users.length === 0
+      ? "_Không có ai điểm danh_"
+      : data.users.map((id, i) => `${i + 1}. <@${id}>`).join("\n");
+
+  const embed = new EmbedBuilder()
+    .setTitle(
+      `📋 LOG ĐIỂM DANH – ${
+        currentSession === "trua" ? "SỰ KIỆN TRƯA" : "SỰ KIỆN TỐI"
+      }`
+    )
+    .setColor("#00ff99")
+    .setDescription(
+      `👥 **Tổng:** ${data.users.length}\n\n${list}`
+    )
+    .setFooter({ text: CONFIG.EMBED.FOOTER })
+    .setTimestamp();
+
+  await logChannel.send({ embeds: [embed] });
+}
+
 
 /* ================== REPLY 15s ================== */
 async function replyEmbedCountdown(interaction, opt) {
