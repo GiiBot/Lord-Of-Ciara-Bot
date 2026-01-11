@@ -449,36 +449,69 @@ cron.schedule(
 cron.schedule(
   "0 16 * * *",
   async () => {
-    const session = "trua";
-    currentSession = session;
-    await autoSendLog(); // 👉 LUÔN GỬI LOG
+    currentSession = "trua";
+    await autoSendLog();                 // log
+    await announceCloseSession("trua");  // 🔔 THÔNG BÁO HẾT GIỜ
     currentSession = null;
     sessionEndTime = null;
     attendanceMessageId = null;
-    console.log("📋 Đã gửi log phiên TRƯA");
+    console.log("📋 Đã đóng phiên TRƯA");
   },
   { timezone: CONFIG.TIMEZONE }
 );
+
 
 
 // 🔒 Đóng phiên TỐI + gửi log vào kênh LOG (22:00)
 cron.schedule(
   "0 22 * * *",
   async () => {
-    const session = "toi";
-    currentSession = session;
-    await autoSendLog(); // 👉 LUÔN GỬI LOG
+    currentSession = "toi";
+    await autoSendLog();                 // log
+    await announceCloseSession("toi");   // 🔔 THÔNG BÁO HẾT GIỜ
     currentSession = null;
     sessionEndTime = null;
     attendanceMessageId = null;
-    console.log("📋 Đã gửi log phiên TỐI");
+    console.log("📋 Đã đóng phiên TỐI");
   },
+  { timezone: CONFIG.TIMEZONE }
+);
+
+async function announceCloseSession(session) {
+  const channel = await client.channels.fetch(CONFIG.CHANNEL_ID);
+  if (!channel) return;
+
+  const embed = new EmbedBuilder()
+    .setTitle("⛔ SỰ KIỆN ĐÃ KẾT THÚC")
+    .setColor("#999999")
+    .setDescription(
+      session === "trua"
+        ? "🕓 **Sự kiện TRƯA đã đóng (16:00)**"
+        : "🌙 **Sự kiện TỐI đã đóng (22:00)**"
+    )
+    .setFooter({ text: CONFIG.EMBED.FOOTER })
+    .setTimestamp();
+
+  await channel.send({ embeds: [embed] });
+}
+
+// 🟢 MỞ PHIÊN TRƯA (11:00)
+cron.schedule(
+  "0 11 * * *",
+  openSession,
+  { timezone: CONFIG.TIMEZONE }
+);
+
+// 🟢 MỞ PHIÊN TỐI (17:00)
+cron.schedule(
+  "0 17 * * *",
+  openSession,
   { timezone: CONFIG.TIMEZONE }
 );
 
 
 /* ================== READY ================== */
-client.once("clientReady", () => {
+client.once("ready", () => {
   console.log(`✅ Bot online: ${client.user.tag}`);
   console.log(`🏠 Server: ${client.guilds.cache.size}`);
 });
