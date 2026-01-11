@@ -257,7 +257,14 @@ async function sendWeeklyStats() {
     .setFooter({ text: CONFIG.EMBED.FOOTER })
     .setTimestamp();
 
-  await logChannel.send({ embeds: [embed] });
+ await logChannel.send({ embeds: [embed] });
+
+  // 🧹 RESET RECORDS SAU KHI CHỐT TUẦN
+ data.records = [];
+ saveData(data);
+
+ console.log("🧹 Đã reset records sau thống kê tuần");
+
 }
 
 
@@ -471,7 +478,7 @@ cron.schedule(
 
 
 /* ================== READY ================== */
-client.once("ready", () => {
+client.once("clientReady", () => {
   console.log(`✅ Bot online: ${client.user.tag}`);
   console.log(`🏠 Server: ${client.guilds.cache.size}`);
 });
