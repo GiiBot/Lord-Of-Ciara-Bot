@@ -352,8 +352,12 @@ client.on("interactionCreate", async (interaction) => {
   }
 
   data.users.push(interaction.user.id);
+  data.records.push({
+    userId: interaction.user.id,
+    time: new Date().toISOString(),
+    session: currentSession,
+  });
   saveData(data);
-
   const channel = await client.channels.fetch(CONFIG.CHANNEL_ID);
   const msg = await channel.messages.fetch(attendanceMessageId);
   await msg.edit({ embeds: [buildBoardEmbed(data)] });
@@ -410,11 +414,34 @@ client.on("messageCreate", async (message) => {
 });
 
 /* ================== CRON ================== */
-cron.schedule("0 11 * * *", openSession, { timezone: CONFIG.TIMEZONE });
-cron.schedule("0 17 * * *", openSession, { timezone: CONFIG.TIMEZONE });
+// 🔒 Đóng phiên TRƯA + gửi log vào kênh LOG (16:00)
 cron.schedule(
-  "0 20 * * 6",
-  sendWeeklyStats,
+  "0 16 * * *",
+  async () => {
+    const session = "trua";
+    currentSession = session;
+    await autoSendLog(); // 👉 LUÔN GỬI LOG
+    currentSession = null;
+    sessionEndTime = null;
+    attendanceMessageId = null;
+    console.log("📋 Đã gửi log phiên TRƯA");
+  },
+  { timezone: CONFIG.TIMEZONE }
+);
+
+
+// 🔒 Đóng phiên TỐI + gửi log vào kênh LOG (22:00)
+cron.schedule(
+  "0 22 * * *",
+  async () => {
+    const session = "toi";
+    currentSession = session;
+    await autoSendLog(); // 👉 LUÔN GỬI LOG
+    currentSession = null;
+    sessionEndTime = null;
+    attendanceMessageId = null;
+    console.log("📋 Đã gửi log phiên TỐI");
+  },
   { timezone: CONFIG.TIMEZONE }
 );
 
