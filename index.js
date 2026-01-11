@@ -69,6 +69,28 @@ function getVNTime() {
     new Date().toLocaleString("en-US", { timeZone: CONFIG.TIMEZONE })
   );
 }
+function getWeekRange() {
+  const now = getVNTime();
+  const day = now.getDay(); // CN = 0
+
+  // CN 11:00
+  const start = new Date(now);
+  start.setDate(now.getDate() - day);
+  start.setHours(11, 0, 0, 0);
+
+  // Nếu hiện tại < CN 11:00 → lùi về tuần trước
+  if (now < start) {
+    start.setDate(start.getDate() - 7);
+  }
+
+  // T7 20:00
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(20, 0, 0, 0);
+
+  return { start, end };
+}
+
 
 function getCurrentSession() {
   const h = getVNTime().getHours();
@@ -189,6 +211,7 @@ async function autoSendLog() {
 }
 
 /* ================== WEEKLY STATS ================== */
+
 async function sendWeeklyStats() {
   if (!CONFIG.LOG_CHANNEL_ID) return;
 
@@ -196,46 +219,40 @@ async function sendWeeklyStats() {
   if (!logChannel) return;
 
   const data = loadData();
+  const { start, end } = getWeekRange(); // CN 11:00 → T7 20:00
 
-  const now = new Date(
-    new Date().toLocaleString("en-US", { timeZone: CONFIG.TIMEZONE })
-  );
-
-  // Lấy đầu tuần (thứ 2)
-  const day = now.getDay() === 0 ? 7 : now.getDay(); // CN = 7
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - (day - 1));
-  startOfWeek.setHours(0, 0, 0, 0);
-
-  // Đếm số lần / user
   const counter = {};
 
+  // Đếm số buổi SK mỗi người tham gia trong tuần
   for (const r of data.records) {
     const t = new Date(r.time);
-    if (t >= startOfWeek && t <= now) {
+    if (t >= start && t <= end) {
       counter[r.userId] = (counter[r.userId] || 0) + 1;
     }
   }
 
+  // Chuyển sang mảng + sort giảm dần
   const entries = Object.entries(counter).sort((a, b) => b[1] - a[1]);
 
   const list =
     entries.length === 0
-      ? "_Không có ai điểm danh tuần này_"
+      ? "_Không có ai tham gia sự kiện trong tuần_"
       : entries
           .map(
-            ([id, count], i) =>
-              `${i + 1}. <@${id}> — **${count} lần**`
+            ([userId, count], index) =>
+              `${index + 1}. <@${userId}> — **${count} buổi SK**`
           )
           .join("\n");
 
   const embed = new EmbedBuilder()
-    .setTitle("📊 THỐNG KÊ ĐIỂM DANH TUẦN")
+    .setTitle("📊 BẢNG TỔNG THAM GIA SỰ KIỆN TUẦN")
     .setColor("#ffaa00")
     .setDescription(
-      `🗓️ **Tuần:** Thứ 2 → Thứ 7\n` +
-      `⏰ **Chốt:** 20:00 Thứ 7 (VN)\n\n` +
-      `👥 **Số người tham gia:** ${entries.length}\n\n${list}`
+      `🗓️ **Thời gian:**\n` +
+      `• Bắt đầu: ${start.toLocaleString("vi-VN")}\n` +
+      `• Kết thúc: ${end.toLocaleString("vi-VN")}\n\n` +
+      `👥 **Tổng người tham gia:** ${entries.length}\n\n` +
+      list
     )
     .setFooter({ text: CONFIG.EMBED.FOOTER })
     .setTimestamp();
@@ -414,6 +431,13 @@ client.on("messageCreate", async (message) => {
 });
 
 /* ================== CRON ================== */
+// 🔒 Đóng phiên cuối tuần 8 h tối 
+cron.schedule(
+  "0 20 * * 6",
+  sendWeeklyStats,
+  { timezone: CONFIG.TIMEZONE }
+);
+
 // 🔒 Đóng phiên TRƯA + gửi log vào kênh LOG (16:00)
 cron.schedule(
   "0 16 * * *",
